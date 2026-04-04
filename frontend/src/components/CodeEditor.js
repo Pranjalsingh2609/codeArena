@@ -1,4 +1,3 @@
-// CodeEditor.js
 import React, { useCallback, useRef, useEffect } from "react";
 import Editor from "@monaco-editor/react";
 import { socket } from "../socket";
@@ -7,37 +6,63 @@ const CodeEditor = ({ code, setCode, roomId, language = "javascript" }) => {
   const containerRef = useRef();
   const editorRef = useRef();
 
-  // Handle code changes
+  // 🔥 NEW: debounce + last sent tracking
+  const debounceRef = useRef(null);
+  const lastSentCode = useRef("");
+
+  // 🚀 Handle code changes (MERGED + OPTIMIZED)
   const handleChange = useCallback(
     (value) => {
       if (value === undefined) return;
+
       setCode(value);
 
-      socket.emit("code-change", {
-        roomId,
-        code: value,
-      });
+      // ❌ Prevent sending same code repeatedly
+      if (value === lastSentCode.current) return;
+
+      // 🧠 Debounce to avoid API spam
+      if (debounceRef.current) {
+        clearTimeout(debounceRef.current);
+      }
+
+      debounceRef.current = setTimeout(() => {
+        socket.emit("code-change", {
+          roomId,
+          code: value,
+        });
+
+        lastSentCode.current = value;
+      }, 400); // ⚡ optimized delay
     },
     [roomId, setCode]
   );
 
-  // Capture Monaco editor instance
+  // 📌 Capture Monaco editor instance
   const handleEditorDidMount = (editor) => {
     editorRef.current = editor;
 
-    // Initial layout
+    // Initial layout fix
     setTimeout(() => {
       if (editorRef.current) editorRef.current.layout();
-    }, 100); // small delay ensures container is mounted
+    }, 100);
   };
 
-  // Handle window resize manually
+  // 📐 Handle window resize
   useEffect(() => {
     const handleResize = () => {
       if (editorRef.current) editorRef.current.layout();
     };
+
     window.addEventListener("resize", handleResize);
-    return () => window.removeEventListener("resize", handleResize);
+
+    return () => {
+      window.removeEventListener("resize", handleResize);
+
+      // 🧹 cleanup debounce
+      if (debounceRef.current) {
+        clearTimeout(debounceRef.current);
+      }
+    };
   }, []);
 
   return (
@@ -45,7 +70,7 @@ const CodeEditor = ({ code, setCode, roomId, language = "javascript" }) => {
       ref={containerRef}
       style={{
         flex: 1,
-        minHeight: "400px", // ensures stable container
+        minHeight: "400px",
         width: "100%",
         borderRadius: "10px",
         overflow: "hidden",
@@ -71,7 +96,7 @@ const CodeEditor = ({ code, setCode, roomId, language = "javascript" }) => {
           scrollBeyondLastLine: false,
           wordWrap: "on",
           tabSize: 2,
-          automaticLayout: false, // OFF because we handle it manually
+          automaticLayout: false, // manual control
           cursorBlinking: "smooth",
           smoothScrolling: true,
         }}

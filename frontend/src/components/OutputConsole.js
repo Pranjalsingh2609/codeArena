@@ -1,9 +1,6 @@
-import React, { useState } from "react";
+import React from "react";
 
-const OutputConsole = () => {
-
-  const [output] = useState("Program output will appear here...");
-
+const OutputConsole = ({ output }) => {
   const styles = {
     container: {
       background: "#020617",
@@ -14,7 +11,7 @@ const OutputConsole = () => {
       fontFamily: "Fira Code, monospace",
       borderRadius: "8px",
       border: "1px solid #1e293b",
-      boxShadow: "0 4px 10px rgba(0,0,0,0.3)"
+      boxShadow: "0 4px 10px rgba(0,0,0,0.3)",
     },
 
     header: {
@@ -23,20 +20,22 @@ const OutputConsole = () => {
       fontWeight: "600",
       marginBottom: "8px",
       borderBottom: "1px solid #1e293b",
-      paddingBottom: "6px"
+      paddingBottom: "6px",
     },
 
     output: {
       fontSize: "14px",
       whiteSpace: "pre-wrap",
-      lineHeight: "1.5"
-    }
+      lineHeight: "1.5",
+    },
   };
 
   return (
     <div style={styles.container}>
       <div style={styles.header}>Console</div>
-      <pre style={styles.output}>{output}</pre>
+      <pre style={styles.output}>
+        {output || "Program output will appear here..."}
+      </pre>
     </div>
   );
 };

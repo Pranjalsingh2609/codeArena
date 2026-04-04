@@ -1,5 +1,3 @@
-// utils/aiAnalysis.js
-
 const OpenAI = require("openai");
 
 const openai = new OpenAI({
@@ -7,20 +5,32 @@ const openai = new OpenAI({
 });
 
 exports.analyzeCodeWithAI = async (code, language) => {
-  if (!code) return [];
+  if (!code || code.trim().length < 5) return [];
 
+  // 🔥 STRONG PROMPT (very important)
   const prompt = `
-Analyze the following ${language} code.
+You are a senior software engineer and security expert.
 
-Check for:
-1. Security vulnerabilities
-2. Ethical issues (bias, privacy leaks)
-3. License or compliance issues
+Analyze the given ${language} code carefully.
 
-Return ONLY valid JSON like this:
-[
-  { "type": "security", "message": "SQL injection risk" }
-]
+Focus on:
+- Security vulnerabilities (injection, XSS, auth issues)
+- Bugs / logical errors
+- Performance issues
+- Bad practices
+
+Return ONLY a valid JSON array.
+
+Each item MUST follow this format:
+{
+  "type": "security | bug | performance | style",
+  "severity": "low | medium | high",
+  "message": "clear explanation",
+  "line": "line number if possible",
+  "fix": "how to fix it"
+}
+
+Do NOT include any explanation outside JSON.
 
 Code:
 ${code}
@@ -30,32 +40,44 @@ ${code}
     const response = await openai.responses.create({
       model: "gpt-4o-mini",
       input: prompt,
-      max_output_tokens: 500,
+      max_output_tokens: 400,
     });
 
-    const responseText = response.output_text;
+    let text = response.output_text?.trim() || "";
 
-    let issues = [];
+    // 🧠 CLEAN JSON EXTRACTION (very important)
+    const start = text.indexOf("[");
+    const end = text.lastIndexOf("]");
 
-    try {
-      issues = JSON.parse(responseText);
-    } catch {
-      issues = [
-        {
-          type: "ai_response",
-          message: responseText,
-        },
-      ];
+    if (start === -1 || end === -1) {
+      throw new Error("Invalid JSON format from AI");
     }
+
+    const jsonString = text.slice(start, end + 1);
+
+    let issues = JSON.parse(jsonString);
+
+    // ✅ Normalize output (extra safety)
+    issues = issues.map((issue) => ({
+      type: issue.type || "unknown",
+      severity: issue.severity || "low",
+      message: issue.message || "No description",
+      line: issue.line || null,
+      fix: issue.fix || "No fix provided",
+    }));
 
     return issues;
 
   } catch (error) {
     console.error("AI analysis error:", error.message);
+
     return [
       {
         type: "system",
+        severity: "low",
         message: "AI analysis failed",
+        line: null,
+        fix: "Try again later",
       },
     ];
   }

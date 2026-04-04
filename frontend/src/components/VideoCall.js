@@ -11,12 +11,10 @@ const VideoCall = ({ roomId }) => {
   const [error, setError] = useState("");
 
   useEffect(() => {
-
     let stream;
 
     const startVideo = async () => {
       try {
-
         const currentStream = await navigator.mediaDevices.getUserMedia({
           video: true,
           audio: true
@@ -28,24 +26,33 @@ const VideoCall = ({ roomId }) => {
           myVideo.current.srcObject = currentStream;
         }
 
+        // 🔥 JOIN VIDEO ROOM
         socket.emit("join-video", roomId);
 
-        socket.on("user-joined", (signal) => {
+        // 👥 EXISTING USERS → create peer (initiator)
+        socket.on("all-users", (users) => {
+          if (users.length > 0) {
+            const peer = createPeer(users[0], currentStream);
+            peerRef.current = peer;
+          }
+        });
 
-          peerRef.current = new Peer({
-            initiator: false,
-            trickle: false,
-            stream: currentStream
-          });
+        // 🆕 NEW USER JOINED → create receiver peer
+        socket.on("user-joined-video", (userId) => {
+          const peer = addPeer(userId, currentStream);
+          peerRef.current = peer;
+        });
 
-          peerRef.current.signal(signal);
+        // 📡 RECEIVE SIGNAL
+        socket.on("receiving-signal", ({ signal, from }) => {
+          const peer = addPeer(from, currentStream);
+          peer.signal(signal);
+          peerRef.current = peer;
+        });
 
-          peerRef.current.on("stream", (remoteStream) => {
-            if (userVideo.current) {
-              userVideo.current.srcObject = remoteStream;
-            }
-          });
-
+        // 🔁 SIGNAL RETURNED
+        socket.on("signal-returned", ({ signal }) => {
+          peerRef.current?.signal(signal);
         });
 
       } catch (err) {
@@ -56,21 +63,71 @@ const VideoCall = ({ roomId }) => {
     startVideo();
 
     return () => {
-
       if (stream) {
         stream.getTracks().forEach(track => track.stop());
       }
 
-      socket.off("user-joined");
+      socket.off("all-users");
+      socket.off("user-joined-video");
+      socket.off("receiving-signal");
+      socket.off("signal-returned");
 
       if (peerRef.current) {
         peerRef.current.destroy();
       }
-
     };
 
   }, [roomId]);
 
+  // 🔥 CREATE PEER (Caller)
+  const createPeer = (userToSignal, stream) => {
+    const peer = new Peer({
+      initiator: true,
+      trickle: false,
+      stream
+    });
+
+    peer.on("signal", (signal) => {
+      socket.emit("sending-signal", {
+        userToSignal,
+        signal
+      });
+    });
+
+    peer.on("stream", (remoteStream) => {
+      if (userVideo.current) {
+        userVideo.current.srcObject = remoteStream;
+      }
+    });
+
+    return peer;
+  };
+
+  // 🔥 ADD PEER (Receiver)
+  const addPeer = (incomingId, stream) => {
+    const peer = new Peer({
+      initiator: false,
+      trickle: false,
+      stream
+    });
+
+    peer.on("signal", (signal) => {
+      socket.emit("returning-signal", {
+        signal,
+        to: incomingId
+      });
+    });
+
+    peer.on("stream", (remoteStream) => {
+      if (userVideo.current) {
+        userVideo.current.srcObject = remoteStream;
+      }
+    });
+
+    return peer;
+  };
+
+  // 🎨 YOUR ORIGINAL STYLES (UNCHANGED)
   const styles = {
     container: {
       display: "flex",
@@ -111,11 +168,11 @@ const VideoCall = ({ roomId }) => {
   };
 
   return (
-
     <div style={styles.container}>
 
       {error && <div style={styles.error}>{error}</div>}
 
+      {/* 🎥 YOUR VIDEO */}
       <div style={styles.videoCard}>
         <video
           ref={myVideo}
@@ -127,6 +184,7 @@ const VideoCall = ({ roomId }) => {
         <div style={styles.label}>You</div>
       </div>
 
+      {/* 🎥 REMOTE VIDEO */}
       <div style={styles.videoCard}>
         <video
           ref={userVideo}
@@ -138,7 +196,6 @@ const VideoCall = ({ roomId }) => {
       </div>
 
     </div>
-
   );
 };
 

@@ -16,7 +16,8 @@ module.exports = (io, socket) => {
       rooms[roomId] = {
         code: "",
         language: "javascript",
-        users: []
+        users: [],
+        messages: []  
       };
     }
 
@@ -24,36 +25,87 @@ module.exports = (io, socket) => {
 
     // Sync current code and language to joining user
     socket.emit("sync-code", rooms[roomId]);
+    socket.emit("chat-history", rooms[roomId].messages);
 
     console.log(`User ${socket.id} joined room ${roomId}`);
   });
 
-  // User updates code
-  socket.on("code-change", async ({ roomId, code }) => {
-    if (!rooms[roomId]) return;
+const debounceTimers = {};
+const aiCache = new Map();
 
-    rooms[roomId].code = code;
+socket.on("code-change", ({ roomId, code }) => {
+  if (!rooms[roomId]) return;
 
-    // Broadcast updated code to other users
-    socket.to(roomId).emit("code-update", code);
+  rooms[roomId].code = code;
 
+  socket.to(roomId).emit("code-update", code);
+
+  // 🧠 STATIC ANALYSIS (fast → keep immediate)
+  const staticIssues = runStaticAnalysis(code, rooms[roomId].language);
+  io.to(roomId).emit("ai-suggestions", staticIssues);
+
+  // 🚀 AI ANALYSIS (debounced)
+  if (debounceTimers[roomId]) {
+    clearTimeout(debounceTimers[roomId]);
+  }
+
+  debounceTimers[roomId] = setTimeout(async () => {
     try {
-      // 1. Run static analysis
-      const staticIssues = runStaticAnalysis(code, rooms[roomId].language);
+      const cacheKey = code.slice(0, 200); // simple hash substitute
 
-      // 2. Run AI analysis
-      const aiIssues = await analyzeCodeWithAI(code, rooms[roomId].language);
+      if (aiCache.has(cacheKey)) {
+        io.to(roomId).emit("ai-suggestions", aiCache.get(cacheKey));
+        return;
+      }
 
-      // 3. Merge issues
-      const issues = [...staticIssues, ...aiIssues];
+      const aiIssues = await analyzeCodeWithAI(
+        code,
+        rooms[roomId].language
+      );
 
-      // 4. Emit AI suggestions to all users in the room
-      io.to(roomId).emit("ai-suggestions", issues);
+      aiCache.set(cacheKey, aiIssues);
 
-    } catch (error) {
-      console.error("Error running AI analysis:", error);
+      io.to(roomId).emit("ai-suggestions", aiIssues);
+
+    } catch (err) {
+      console.error("AI Error:", err);
     }
+  }, 1200); // 🧠 1.2 sec debounce
+});
+
+
+// 🎥 VIDEO SIGNALING
+
+socket.on("join-video", (roomId) => {
+  socket.join(roomId);
+
+  const clients = Array.from(io.sockets.adapter.rooms.get(roomId) || []);
+
+  // Notify others someone joined
+  socket.to(roomId).emit("user-joined-video", socket.id);
+
+  // Send existing users list to new user
+  socket.emit("all-users", clients.filter(id => id !== socket.id));
+});
+
+// 📡 Sending signal (offer/answer)
+socket.on("sending-signal", ({ userToSignal, signal }) => {
+  io.to(userToSignal).emit("receiving-signal", {
+    signal,
+    from: socket.id,
   });
+});
+
+// 📡 Returning signal
+socket.on("returning-signal", ({ signal, to }) => {
+  io.to(to).emit("signal-returned", {
+    signal,
+    from: socket.id,
+  });
+});
+
+
+
 
   // User changes language
   socket.on("language-change", ({ roomId, language }) => {
@@ -79,5 +131,24 @@ module.exports = (io, socket) => {
       }
     }
   });
+
+
+// 💬 CHAT MESSAGE
+socket.on("send-message", ({ roomId, message }) => {
+  if (!rooms[roomId]) return;
+
+  const newMessage = {
+    user: socket.user?.email || "Anonymous",
+    text: message,
+    time: new Date().toISOString(),
+  };
+
+  // Save message
+  rooms[roomId].messages.push(newMessage);
+
+  // Broadcast to room
+  io.to(roomId).emit("receive-message", newMessage);
+});
+
 
 };
