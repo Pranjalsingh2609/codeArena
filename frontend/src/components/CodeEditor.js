@@ -3,24 +3,20 @@ import Editor from "@monaco-editor/react";
 import { socket } from "../socket";
 
 const CodeEditor = ({ code, setCode, roomId, language = "javascript" }) => {
-  const containerRef = useRef();
-  const editorRef = useRef();
-
-  // 🔥 NEW: debounce + last sent tracking
+  const editorRef = useRef(null);
   const debounceRef = useRef(null);
   const lastSentCode = useRef("");
 
-  // 🚀 Handle code changes (MERGED + OPTIMIZED)
+  // 🚀 Handle code changes (optimized + debounced)
   const handleChange = useCallback(
     (value) => {
       if (value === undefined) return;
 
       setCode(value);
 
-      // ❌ Prevent sending same code repeatedly
+      // Avoid sending duplicate content
       if (value === lastSentCode.current) return;
 
-      // 🧠 Debounce to avoid API spam
       if (debounceRef.current) {
         clearTimeout(debounceRef.current);
       }
@@ -32,25 +28,26 @@ const CodeEditor = ({ code, setCode, roomId, language = "javascript" }) => {
         });
 
         lastSentCode.current = value;
-      }, 400); // ⚡ optimized delay
+      }, 400);
     },
     [roomId, setCode]
   );
 
-  // 📌 Capture Monaco editor instance
+  // 📌 Capture Monaco instance
   const handleEditorDidMount = (editor) => {
     editorRef.current = editor;
 
-    // Initial layout fix
+    // 🔥 Ensure layout + cursor visibility
     setTimeout(() => {
-      if (editorRef.current) editorRef.current.layout();
-    }, 100);
+      editor.layout();
+      editor.focus();
+    }, 150);
   };
 
-  // 📐 Handle window resize
+  // 📐 Resize handling
   useEffect(() => {
     const handleResize = () => {
-      if (editorRef.current) editorRef.current.layout();
+      editorRef.current?.layout();
     };
 
     window.addEventListener("resize", handleResize);
@@ -58,7 +55,6 @@ const CodeEditor = ({ code, setCode, roomId, language = "javascript" }) => {
     return () => {
       window.removeEventListener("resize", handleResize);
 
-      // 🧹 cleanup debounce
       if (debounceRef.current) {
         clearTimeout(debounceRef.current);
       }
@@ -66,21 +62,7 @@ const CodeEditor = ({ code, setCode, roomId, language = "javascript" }) => {
   }, []);
 
   return (
-    <div
-      ref={containerRef}
-      style={{
-        flex: 1,
-        minHeight: "400px",
-        width: "100%",
-        borderRadius: "10px",
-        overflow: "hidden",
-        background: "#1e1e1e",
-        border: "1px solid #2d3748",
-        boxShadow: "0 4px 12px rgba(0,0,0,0.25)",
-        display: "flex",
-        flexDirection: "column",
-      }}
-    >
+    <div style={styles.container}>
       <Editor
         height="100%"
         width="100%"
@@ -89,20 +71,46 @@ const CodeEditor = ({ code, setCode, roomId, language = "javascript" }) => {
         theme="vs-dark"
         onChange={handleChange}
         onMount={handleEditorDidMount}
-        options={{
-          fontSize: 16,
-          fontFamily: "Fira Code, monospace",
-          minimap: { enabled: false },
-          scrollBeyondLastLine: false,
-          wordWrap: "on",
-          tabSize: 2,
-          automaticLayout: false, // manual control
-          cursorBlinking: "smooth",
-          smoothScrolling: true,
-        }}
+        options={editorOptions}
       />
     </div>
   );
+};
+
+// 🎨 Clean styles (production friendly)
+const styles = {
+  container: {
+    height: "400px", // ✅ fixed height (prevents layout bugs)
+    width: "100%",
+    borderRadius: "10px",
+    overflow: "hidden",
+    background: "#1e1e1e",
+    border: "1px solid #2d3748",
+    boxShadow: "0 4px 12px rgba(0,0,0,0.25)",
+  },
+};
+
+// ⚙️ Monaco options (stable + optimized)
+const editorOptions = {
+  fontSize: 16,
+  fontFamily: "Fira Code, monospace",
+  minimap: { enabled: false },
+  wordWrap: "on",
+  tabSize: 2,
+
+  automaticLayout: true,
+  scrollBeyondLastLine: false,
+
+  // 🔥 Cursor fix
+  cursorBlinking: "blink",
+  cursorStyle: "line",
+  cursorWidth: 2,
+
+  smoothScrolling: true,
+
+  // 🔥 Prevent cursor clipping
+  padding: { top: 10 },
+  lineHeight: 22,
 };
 
 export default React.memo(CodeEditor);

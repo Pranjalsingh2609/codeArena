@@ -25,7 +25,7 @@ const CodeAnalysisPanel = ({ roomId }) => {
         background: "#111827",
         color: "#facc15",
         padding: "10px",
-        height: "200px",
+        height: "50px",
         overflowY: "auto",
         borderRadius: "8px",
         border: "1px solid #1e293b",

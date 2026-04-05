@@ -12,39 +12,25 @@ import { socket } from "../socket";
 
 const InterviewRoom = () => {
   const { roomId } = useParams();
-
   const [code, setCode] = useState("");
   const [language, setLanguage] = useState("javascript");
   const [output, setOutput] = useState("");
-
-  // 💬 Chat state
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState("");
   const chatRef = useRef(null);
 
   useEffect(() => {
-    // Join room
     socket.emit("join-room", roomId);
 
-    // Code sync
     socket.on("sync-code", (data) => {
       setCode(data.code);
       setLanguage(data.language);
     });
-
     socket.on("code-update", (newCode) => setCode(newCode));
     socket.on("language-update", (lang) => setLanguage(lang));
+    socket.on("chat-history", (msgs) => setMessages(msgs));
+    socket.on("receive-message", (msg) => setMessages((prev) => [...prev, msg]));
 
-    // 💬 Chat events
-    socket.on("chat-history", (msgs) => {
-      setMessages(msgs);
-    });
-
-    socket.on("receive-message", (msg) => {
-      setMessages((prev) => [...prev, msg]);
-    });
-
-    // Cleanup (VERY IMPORTANT)
     return () => {
       socket.off("sync-code");
       socket.off("code-update");
@@ -54,100 +40,98 @@ const InterviewRoom = () => {
     };
   }, [roomId]);
 
-  // Auto scroll chat
   useEffect(() => {
-    if (chatRef.current) {
-      chatRef.current.scrollTop = chatRef.current.scrollHeight;
-    }
+    if (chatRef.current) chatRef.current.scrollTop = chatRef.current.scrollHeight;
   }, [messages]);
 
-  // Send message
   const sendMessage = () => {
     if (!input.trim()) return;
-
-    socket.emit("send-message", {
-      roomId,
-      message: input,
-    });
-
+    socket.emit("send-message", { roomId, message: input });
     setInput("");
   };
 
   const styles = {
     page: {
       height: "100vh",
-      background: "#020617",
-      color: "white",
       display: "flex",
       flexDirection: "column",
       fontFamily: "Inter, sans-serif",
+      background: "#0b1120",
+      color: "#e2e8f0",
+      overflow: "hidden",
     },
     topBar: {
       height: "60px",
-      background: "#0f172a",
-      borderBottom: "1px solid #1e293b",
+      background: "rgba(15, 23, 42, 0.9)",
+      backdropFilter: "blur(12px)",
+      borderBottom: "1px solid #2b3b54",
       display: "flex",
       alignItems: "center",
       justifyContent: "space-between",
       padding: "0 20px",
+      zIndex: 10,
     },
-    logo: { fontSize: "18px", fontWeight: "600" },
+    logo: { fontSize: "22px", fontWeight: "700", color: "#38bdf8" },
     roomInfo: { fontSize: "12px", color: "#94a3b8" },
-    topControls: { display: "flex", alignItems: "center", gap: "14px" },
+    topControls: { display: "flex", alignItems: "center", gap: "16px" },
     main: { flex: 1, display: "flex", overflow: "hidden" },
     sidebar: {
-      width: "300px",
-      background: "#0f172a",
+      width: "320px",
+      background: "#020617",
       borderRight: "1px solid #1e293b",
-      padding: "10px",
       display: "flex",
       flexDirection: "column",
+      overflow: "hidden",
+      padding: "12px",
     },
-    chatBox: {
-      flex: 1,
-      display: "flex",
-      flexDirection: "column",
-      marginTop: "10px",
-    },
+    chatBox: { flex: 1, display: "flex", flexDirection: "column", marginTop: "12px" },
     messages: {
       flex: 1,
       overflowY: "auto",
-      background: "#020617",
-      padding: "8px",
-      borderRadius: "8px",
-      fontSize: "12px",
+      padding: "10px",
+      borderRadius: "10px",
+      background: "#0f172a",
+      fontSize: "13px",
+      marginBottom: "8px",
     },
-    inputBox: {
-      display: "flex",
-      marginTop: "6px",
-    },
+    inputBox: { display: "flex", gap: "6px" },
     input: {
       flex: 1,
-      padding: "6px",
-      background: "#0f172a",
+      padding: "8px",
+      background: "#353d61",
       border: "1px solid #1e293b",
-      color: "white",
-      borderRadius: "4px",
+      color: "#fff",
+      borderRadius: "20px",
+      outline: "none",
     },
     button: {
-      marginLeft: "6px",
-      padding: "6px 10px",
+      padding: "8px 14px",
+      background: "#384f40",
+      border: "none",
+      borderRadius: "6px",
+      color: "#fff",
       cursor: "pointer",
+      fontWeight: "500",
+      transition: "0.2s",
     },
-    editorSection: {
-      flex: 1,
-      display: "flex",
-      flexDirection: "column",
+    buttonHover: {
+      background: "#16a34a",
     },
-    editorContainer: {
-      flex: 1,
-      padding: "10px",
-      display: "flex",
-      flexDirection: "column",
-    },
+    editorSection: { flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" },
+    editorContainer: { flex: 1, padding: "12px", overflow: "hidden", borderRadius: "10px" },
     consoleContainer: {
-      height: "200px",
+      height: "280px",
+      display: "flex",
+      flexDirection: "column",
+      gap: "8px",
+      marginTop: "8px",
+    },
+    analysisPanel: {
+      padding: "10px",
+      background: "#020617",
       borderTop: "1px solid #1e293b",
+      borderRadius: "8px",
+      marginTop: "8px",
     },
   };
 
@@ -161,21 +145,15 @@ const InterviewRoom = () => {
         </div>
         <div style={styles.topControls}>
           <Timer />
-          <LanguageSelector
-            language={language}
-            setLanguage={setLanguage}
-            roomId={roomId}
-          />
+          <LanguageSelector language={language} setLanguage={setLanguage} roomId={roomId} />
         </div>
       </div>
 
-      {/* Main Layout */}
       <div style={styles.main}>
         {/* Sidebar */}
         <div style={styles.sidebar}>
           <VideoCall roomId={roomId} />
 
-          {/* 💬 Chat */}
           <div style={styles.chatBox}>
             <div ref={chatRef} style={styles.messages}>
               {messages.map((msg, i) => (
@@ -199,23 +177,18 @@ const InterviewRoom = () => {
           </div>
         </div>
 
-        {/* Editor + Console */}
+        {/* Editor + Console + Analysis */}
         <div style={styles.editorSection}>
           <div style={styles.editorContainer}>
-            <CodeEditor
-              code={code}
-              setCode={setCode}
-              roomId={roomId}
-              language={language}
-            />
+            <CodeEditor code={code} setCode={setCode} roomId={roomId} language={language} />
           </div>
 
           <div style={styles.consoleContainer}>
-            <CodeRunner code={code} setOutput={setOutput} />
+            <CodeRunner code={code} setOutput={setOutput} language={language} />
             <OutputConsole output={output} />
           </div>
 
-          <div style={{ marginTop: "10px" }}>
+          <div style={styles.analysisPanel}>
             <CodeAnalysisPanel code={code} language={language} />
           </div>
         </div>
