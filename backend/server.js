@@ -15,7 +15,11 @@ const authRoutes = require("./routes/authRoutes");
 const app = express();
 
 // Middleware
-app.use(cors()); // Allow cross-origin requests
+app.use(cors({
+  origin: "https://codermeet.netlify.app",
+  methods: ["GET", "POST"],
+  credentials: true
+}));
 app.use(express.json()); // Parse JSON requests
 app.use("/api/auth", authRoutes);
 // Routes
@@ -138,7 +142,7 @@ const server = http.createServer(app);
 
 const io = new Server(server, {
   cors: {
-    origin: "*", // Allow any origin (adjust for production)
+   origin: "https://codermeet.netlify.app",
     methods: ["GET", "POST"],
   },
 });
