@@ -7,12 +7,14 @@ const CodeRunner = ({ code, language }) => {
   const [output, setOutput] = useState("");
   const [analysis, setAnalysis] = useState("");
 
+
+
   const runCode = async () => {
     setLoading(true);
     setOutput("⏳ Running...\n");
 
     try {
-      const res = await fetch("http://localhost:5000/api/run", {
+     const res = await fetch("https://codearena-az4r.onrender.com/api/run", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ code, language, input }),
