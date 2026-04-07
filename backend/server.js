@@ -147,10 +147,11 @@ const io = new Server(server, {
   },
 });
 
-io.use((socket, next) => {
+ io.use((socket, next) => {
   const token = socket.handshake.auth.token;
 
-  if (!token) return next(new Error("No token"));
+   if (!token) return next(new Error("No token"));
+
 
   try {
     const decoded = require("jsonwebtoken").verify(

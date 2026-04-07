@@ -12,36 +12,57 @@ import { socket } from "../socket";
 
 const InterviewRoom = () => {
   const { roomId } = useParams();
+
   const [code, setCode] = useState("");
   const [language, setLanguage] = useState("javascript");
   const [output, setOutput] = useState("");
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState("");
+  const [users, setUsers] = useState([]);
+
   const chatRef = useRef(null);
-
   useEffect(() => {
-    socket.emit("join-room", roomId);
+    socket.emit("join-room", {
+      roomId,
+      username: "User-" + Math.floor(Math.random() * 1000),
+    });
 
+    // 🔥 CLEAR OLD LISTENERS (VERY IMPORTANT)
+    socket.off("sync-code");
+    socket.off("language-update");
+    socket.off("chat-history");
+    socket.off("receive-message");
+    socket.off("users-update");
+
+    // ✅ Now attach fresh listeners
     socket.on("sync-code", (data) => {
       setCode(data.code);
       setLanguage(data.language);
     });
-    socket.on("code-update", (newCode) => setCode(newCode));
+
     socket.on("language-update", (lang) => setLanguage(lang));
     socket.on("chat-history", (msgs) => setMessages(msgs));
-    socket.on("receive-message", (msg) => setMessages((prev) => [...prev, msg]));
+
+    socket.on("receive-message", (msg) =>
+      setMessages((prev) => [...prev, msg]),
+    );
+
+    socket.on("users-update", (usersList) => {
+      setUsers(usersList);
+    });
 
     return () => {
       socket.off("sync-code");
-      socket.off("code-update");
       socket.off("language-update");
       socket.off("chat-history");
       socket.off("receive-message");
+      socket.off("users-update");
     };
   }, [roomId]);
 
   useEffect(() => {
-    if (chatRef.current) chatRef.current.scrollTop = chatRef.current.scrollHeight;
+    if (chatRef.current)
+      chatRef.current.scrollTop = chatRef.current.scrollHeight;
   }, [messages]);
 
   const sendMessage = () => {
@@ -84,7 +105,12 @@ const InterviewRoom = () => {
       overflow: "hidden",
       padding: "12px",
     },
-    chatBox: { flex: 1, display: "flex", flexDirection: "column", marginTop: "12px" },
+    chatBox: {
+      flex: 1,
+      display: "flex",
+      flexDirection: "column",
+      marginTop: "12px",
+    },
     messages: {
       flex: 1,
       overflowY: "auto",
@@ -117,8 +143,18 @@ const InterviewRoom = () => {
     buttonHover: {
       background: "#16a34a",
     },
-    editorSection: { flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" },
-    editorContainer: { flex: 1, padding: "12px", overflow: "hidden", borderRadius: "10px" },
+    editorSection: {
+      flex: 1,
+      display: "flex",
+      flexDirection: "column",
+      overflow: "hidden",
+    },
+    editorContainer: {
+      flex: 1,
+      padding: "12px",
+      overflow: "hidden",
+      borderRadius: "10px",
+    },
     consoleContainer: {
       height: "280px",
       display: "flex",
@@ -145,7 +181,11 @@ const InterviewRoom = () => {
         </div>
         <div style={styles.topControls}>
           <Timer />
-          <LanguageSelector language={language} setLanguage={setLanguage} roomId={roomId} />
+          <LanguageSelector
+            language={language}
+            setLanguage={setLanguage}
+            roomId={roomId}
+          />
         </div>
       </div>
 
@@ -153,6 +193,39 @@ const InterviewRoom = () => {
         {/* Sidebar */}
         <div style={styles.sidebar}>
           <VideoCall roomId={roomId} />
+
+          <div style={{ marginBottom: "10px" }}>
+            <h4
+              style={{
+                fontSize: "14px",
+                marginBottom: "6px",
+                color: "#38bdf8",
+              }}
+            >
+              👥 Participants
+            </h4>
+
+            {users.length === 0 ? (
+              <div style={{ fontSize: "12px", color: "#64748b" }}>
+                No users yet
+              </div>
+            ) : (
+              users.map((u) => (
+                <div
+                  key={u.id}
+                  style={{
+                    fontSize: "13px",
+                    padding: "4px 6px",
+                    borderRadius: "6px",
+                    background: "#0f172a",
+                    marginBottom: "4px",
+                  }}
+                >
+                  👤 {u.name}
+                </div>
+              ))
+            )}
+          </div>
 
           <div style={styles.chatBox}>
             <div ref={chatRef} style={styles.messages}>
@@ -180,7 +253,12 @@ const InterviewRoom = () => {
         {/* Editor + Console + Analysis */}
         <div style={styles.editorSection}>
           <div style={styles.editorContainer}>
-            <CodeEditor code={code} setCode={setCode} roomId={roomId} language={language} />
+            <CodeEditor
+              code={code}
+              setCode={setCode}
+              roomId={roomId}
+              language={language}
+            />
           </div>
 
           <div style={styles.consoleContainer}>

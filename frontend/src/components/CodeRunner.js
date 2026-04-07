@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-
+import { API_URL } from "../config"; 
 const CodeRunner = ({ code, language }) => {
   const [loading, setLoading] = useState(false);
   const [input, setInput] = useState("");
@@ -7,14 +7,14 @@ const CodeRunner = ({ code, language }) => {
   const [output, setOutput] = useState("");
   const [analysis, setAnalysis] = useState("");
 
-
+ 
 
   const runCode = async () => {
     setLoading(true);
     setOutput("⏳ Running...\n");
 
     try {
-     const res = await fetch("https://codearena-az4r.onrender.com/api/run", {
+    const res = await fetch(`${API_URL}/run`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ code, language, input }),

@@ -5,7 +5,7 @@ import { socket } from "../socket";
 const CodeEditor = ({ code, setCode, roomId, language = "javascript" }) => {
   const editorRef = useRef(null);
   const debounceRef = useRef(null);
-  const lastSentCode = useRef("");
+  const isRemoteUpdate = useRef(false);
 
   // 🚀 Handle code changes (optimized + debounced)
   const handleChange = useCallback(
@@ -14,8 +14,10 @@ const CodeEditor = ({ code, setCode, roomId, language = "javascript" }) => {
 
       setCode(value);
 
-      // Avoid sending duplicate content
-      if (value === lastSentCode.current) return;
+      if (isRemoteUpdate.current) {
+        isRemoteUpdate.current = false;
+        return;
+      }
 
       if (debounceRef.current) {
         clearTimeout(debounceRef.current);
@@ -26,12 +28,24 @@ const CodeEditor = ({ code, setCode, roomId, language = "javascript" }) => {
           roomId,
           code: value,
         });
-
-        lastSentCode.current = value;
       }, 400);
     },
-    [roomId, setCode]
+    [roomId, setCode],
   );
+
+  // 📡 Listen for incoming code updates
+  useEffect(() => {
+    const handleIncomingCode = (newCode) => {
+      isRemoteUpdate.current = true;
+      setCode(newCode);
+    };
+
+    socket.on("code-update", handleIncomingCode);
+
+    return () => {
+      socket.off("code-update", handleIncomingCode);
+    };
+  }, [setCode]);
 
   // 📌 Capture Monaco instance
   const handleEditorDidMount = (editor) => {

@@ -7,9 +7,8 @@ const { analyzeCodeWithAI } = require("../utils/aiAnalysis");
 const rooms = {}; // Stores room data: code, language, users, etc.
 
 module.exports = (io, socket) => {
-
   // User joins a room
-  socket.on("join-room", (roomId) => {
+  socket.on("join-room", ({ roomId, username }) => {
     socket.join(roomId);
 
     if (!rooms[roomId]) {
@@ -17,95 +16,94 @@ module.exports = (io, socket) => {
         code: "",
         language: "javascript",
         users: [],
-        messages: []  
+        messages: [],
       };
     }
 
-    rooms[roomId].users.push(socket.id);
+    // ✅ store user properly
+    rooms[roomId].users.push({
+      id: socket.id,
+      name: username,
+    });
 
-    // Sync current code and language to joining user
+    // ✅ send users list to all
+    io.to(roomId).emit("users-update", rooms[roomId].users);
+
     socket.emit("sync-code", rooms[roomId]);
     socket.emit("chat-history", rooms[roomId].messages);
-
-    console.log(`User ${socket.id} joined room ${roomId}`);
   });
 
-const debounceTimers = {};
-const aiCache = new Map();
+  const debounceTimers = {};
+  const aiCache = new Map();
 
-socket.on("code-change", ({ roomId, code }) => {
-  if (!rooms[roomId]) return;
+  socket.on("code-change", ({ roomId, code }) => {
+    if (!rooms[roomId]) return;
 
-  rooms[roomId].code = code;
+    rooms[roomId].code = code;
 
-  socket.to(roomId).emit("code-update", code);
+    socket.to(roomId).emit("code-update", code);
 
-  // 🧠 STATIC ANALYSIS (fast → keep immediate)
-  const staticIssues = runStaticAnalysis(code, rooms[roomId].language);
-  io.to(roomId).emit("ai-suggestions", staticIssues);
+    // 🧠 STATIC ANALYSIS (fast → keep immediate)
+    const staticIssues = runStaticAnalysis(code, rooms[roomId].language);
+    io.to(roomId).emit("ai-suggestions", staticIssues);
 
-  // 🚀 AI ANALYSIS (debounced)
-  if (debounceTimers[roomId]) {
-    clearTimeout(debounceTimers[roomId]);
-  }
-
-  debounceTimers[roomId] = setTimeout(async () => {
-    try {
-      const cacheKey = code.slice(0, 200); // simple hash substitute
-
-      if (aiCache.has(cacheKey)) {
-        io.to(roomId).emit("ai-suggestions", aiCache.get(cacheKey));
-        return;
-      }
-
-      const aiIssues = await analyzeCodeWithAI(
-        code,
-        rooms[roomId].language
-      );
-
-      aiCache.set(cacheKey, aiIssues);
-
-      io.to(roomId).emit("ai-suggestions", aiIssues);
-
-    } catch (err) {
-      console.error("AI Error:", err);
+    // 🚀 AI ANALYSIS (debounced)
+    if (debounceTimers[roomId]) {
+      clearTimeout(debounceTimers[roomId]);
     }
-  }, 1200); // 🧠 1.2 sec debounce
-});
 
+    debounceTimers[roomId] = setTimeout(async () => {
+      try {
+        const cacheKey = code.slice(0, 200); // simple hash substitute
 
-// 🎥 VIDEO SIGNALING
+        if (aiCache.has(cacheKey)) {
+          io.to(roomId).emit("ai-suggestions", aiCache.get(cacheKey));
+          return;
+        }
 
-socket.on("join-video", (roomId) => {
-  socket.join(roomId);
+        const aiIssues = await analyzeCodeWithAI(code, rooms[roomId].language);
 
-  const clients = Array.from(io.sockets.adapter.rooms.get(roomId) || []);
+        aiCache.set(cacheKey, aiIssues);
 
-  // Notify others someone joined
-  socket.to(roomId).emit("user-joined-video", socket.id);
-
-  // Send existing users list to new user
-  socket.emit("all-users", clients.filter(id => id !== socket.id));
-});
-
-// 📡 Sending signal (offer/answer)
-socket.on("sending-signal", ({ userToSignal, signal }) => {
-  io.to(userToSignal).emit("receiving-signal", {
-    signal,
-    from: socket.id,
+        io.to(roomId).emit("ai-suggestions", aiIssues);
+      } catch (err) {
+        console.error("AI Error:", err);
+      }
+    }, 1200); // 🧠 1.2 sec debounce
   });
-});
 
-// 📡 Returning signal
-socket.on("returning-signal", ({ signal, to }) => {
-  io.to(to).emit("signal-returned", {
-    signal,
-    from: socket.id,
+  // 🎥 VIDEO SIGNALING
+
+  socket.on("join-video", (roomId) => {
+    socket.join(roomId);
+
+    const clients = Array.from(io.sockets.adapter.rooms.get(roomId) || []);
+
+    // Notify others someone joined
+    socket.to(roomId).emit("user-joined-video", socket.id);
+
+    // Send existing users list to new user
+    socket.emit(
+      "all-users",
+      clients.filter((id) => id !== socket.id),
+    );
   });
-});
 
+  // 📡 Sending signal (offer/answer)
+  socket.on("sending-signal", ({ userToSignal, signal }) => {
+    io.to(userToSignal).emit("receiving-signal", {
+      signal,
+      from: socket.id,
+    });
+  });
 
-
+  // 📡 Returning signal
+  socket.on("returning-signal", ({ signal, to }) => {
+    io.to(to).emit("signal-returned", {
+      signal,
+      from: socket.id,
+    });
+  });
 
   // User changes language
   socket.on("language-change", ({ roomId, language }) => {
@@ -123,7 +121,9 @@ socket.on("returning-signal", ({ signal, to }) => {
     console.log(`User disconnected: ${socket.id}`);
 
     for (const roomId in rooms) {
-      rooms[roomId].users = rooms[roomId].users.filter(id => id !== socket.id);
+      rooms[roomId].users = rooms[roomId].users.filter(
+        (id) => id !== socket.id,
+      );
 
       // Delete room if empty
       if (rooms[roomId].users.length === 0) {
@@ -132,23 +132,20 @@ socket.on("returning-signal", ({ signal, to }) => {
     }
   });
 
+  // 💬 CHAT MESSAGE
+  socket.on("send-message", ({ roomId, message }) => {
+    if (!rooms[roomId]) return;
 
-// 💬 CHAT MESSAGE
-socket.on("send-message", ({ roomId, message }) => {
-  if (!rooms[roomId]) return;
+    const newMessage = {
+      user: socket.user?.email || "Anonymous",
+      text: message,
+      time: new Date().toISOString(),
+    };
 
-  const newMessage = {
-    user: socket.user?.email || "Anonymous",
-    text: message,
-    time: new Date().toISOString(),
-  };
+    // Save message
+    rooms[roomId].messages.push(newMessage);
 
-  // Save message
-  rooms[roomId].messages.push(newMessage);
-
-  // Broadcast to room
-  io.to(roomId).emit("receive-message", newMessage);
-});
-
-
+    // Broadcast to room
+    io.to(roomId).emit("receive-message", newMessage);
+  });
 };
