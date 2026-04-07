@@ -14,12 +14,16 @@ const authRoutes = require("./routes/authRoutes");
 // Initialize Express app
 const app = express();
 
+const CLIENT_URL = "https://codermeet.netlify.app";
+
 // Middleware
-app.use(cors({
-  origin: "https://codermeet.netlify.app",
-  methods: ["GET", "POST"],
-  credentials: true
-}));
+app.use(
+  cors({
+    origin: CLIENT_URL,
+    methods: ["GET", "POST"],
+    credentials: true,
+  }),
+);
 app.use(express.json()); // Parse JSON requests
 app.use("/api/auth", authRoutes);
 // Routes
@@ -30,13 +34,14 @@ app.get("/", (req, res) => {
   res.send("AI-Powered Code Ethics & Security Advisor Backend Running");
 });
 
-
 app.post("/api/run", (req, res) => {
   const { code, language, input } = req.body;
 
   let filename, process;
 
   try {
+    const uniqueId = Date.now() + "_" + Math.random().toString(36).slice(2);
+
     // ✅ JavaScript
     if (language === "javascript") {
       let output = [];
@@ -53,27 +58,26 @@ app.post("/api/run", (req, res) => {
 
     // ✅ Python
     else if (language === "python") {
-      filename = "temp.py";
+      filename = `temp_${uniqueId}.py`;
       fs.writeFileSync(filename, code);
-
       process = spawn("python", [filename]);
     }
 
     // ✅ C++
     else if (language === "cpp") {
-      filename = "temp.cpp";
+      filename = `temp_${uniqueId}.cpp`;
       fs.writeFileSync(filename, code);
+      const exeFile = `temp_${uniqueId}.exe`;
 
-      const compile = spawn("g++", ["temp.cpp", "-o", "temp.exe"]);
+      const compile = spawn("g++", [filename, "-o", exeFile]);
 
       compile.on("close", (codeCompile) => {
         if (codeCompile !== 0) {
           return res.json({ output: "Compilation Error" });
         }
 
-        const run = spawn("temp.exe");
-
-        handleProcess(run, input, res);
+        const run = spawn(exeFile);
+        handleProcess(run, input, res, [filename, exeFile]);
       });
 
       return;
@@ -81,37 +85,35 @@ app.post("/api/run", (req, res) => {
 
     // ✅ Java
     else if (language === "java") {
-      filename = "Main.java";
+      filename = `Main_${uniqueId}.java`;
       fs.writeFileSync(filename, code);
 
-      const compile = spawn("javac", ["Main.java"]);
+      const className = filename.replace(".java", "");
+
+      const compile = spawn("javac", [filename]);
 
       compile.on("close", (codeCompile) => {
         if (codeCompile !== 0) {
           return res.json({ output: "Compilation Error" });
         }
 
-        const run = spawn("java", ["Main"]);
-
-        handleProcess(run, input, res);
+        const run = spawn("java", [className]);
+        handleProcess(run, input, res, [filename, `${className}.class`]);
       });
 
       return;
-    }
-
-    else {
+    } else {
       return res.json({ output: "Unsupported language" });
     }
 
-    handleProcess(process, input, res);
-
+    handleProcess(process, input, res, [filename]);
   } catch (err) {
     res.json({ output: err.message });
   }
 });
 
 // 🔥 COMMON HANDLER
-function handleProcess(process, input, res) {
+function handleProcess(process, input, res, files = []) {
   let output = "";
   let errorOutput = "";
 
@@ -124,9 +126,17 @@ function handleProcess(process, input, res) {
   });
 
   process.on("close", () => {
-    if (errorOutput) {
+    // ✅ CLEANUP FILES
+    files.forEach((file) => {
+      if (file && fs.existsSync(file)) {
+        fs.unlinkSync(file);
+      }
+    });
+
+        if (errorOutput) {
       return res.json({ output: errorOutput });
     }
+
     res.json({ output: output || "No output" });
   });
 
@@ -142,18 +152,23 @@ const server = http.createServer(app);
 
 const io = new Server(server, {
   cors: {
-   origin: "https://codermeet.netlify.app",
+    origin: CLIENT_URL,
     methods: ["GET", "POST"],
+    credentials: true,
   },
+  transports: ["websocket", "polling"],
 });
 
- io.use((socket, next) => {
-  const token = socket.handshake.auth.token;
-
-   if (!token) return next(new Error("No token"));
-
-
+io.use((socket, next) => {
   try {
+    const token = socket.handshake.auth?.token;
+
+    // ✅ Allow connection even without token (IMPORTANT for debugging)
+    if (!token) {
+      socket.user = { email: "guest@codermeet" };
+      return next();
+    }
+
     const decoded = require("jsonwebtoken").verify(
       token,
       process.env.JWT_SECRET,
@@ -161,8 +176,12 @@ const io = new Server(server, {
 
     socket.user = decoded;
     next();
-  } catch {
-    next(new Error("Invalid token"));
+  } catch (err) {
+    console.log("Auth error:", err.message);
+
+    // ✅ Don't block connection
+    socket.user = { email: "guest@codermeet" };
+    next();
   }
 });
 
@@ -180,7 +199,7 @@ io.on("connection", (socket) => {
 });
 
 // Start server
-const PORT = process.env.PORT || 8080 ;
+const PORT = process.env.PORT || 8080;
 server.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });

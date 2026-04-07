@@ -20,17 +20,31 @@ module.exports = (io, socket) => {
       };
     }
 
-    // ✅ store user properly
-    rooms[roomId].users.push({
+    const existingUser = rooms[roomId].users.find((u) => u.id === socket.id);
+
+    if (!existingUser) {
+      rooms[roomId].users.push({
+        id: socket.id,
+        name: username,
+      });
+    }
+
+    // ✅ Send full data to NEW USER
+    socket.emit("init", {
+      code: rooms[roomId].code,
+      language: rooms[roomId].language,
+      users: rooms[roomId].users,
+      messages: rooms[roomId].messages,
+    });
+
+    // ✅ Notify OTHERS
+    socket.to(roomId).emit("user-joined", {
       id: socket.id,
       name: username,
     });
 
-    // ✅ send users list to all
+    // ✅ Sync users for everyone
     io.to(roomId).emit("users-update", rooms[roomId].users);
-
-    socket.emit("sync-code", rooms[roomId]);
-    socket.emit("chat-history", rooms[roomId].messages);
   });
 
   const debounceTimers = {};
@@ -122,10 +136,12 @@ module.exports = (io, socket) => {
 
     for (const roomId in rooms) {
       rooms[roomId].users = rooms[roomId].users.filter(
-        (id) => id !== socket.id,
+        (user) => user.id !== socket.id,
       );
 
-      // Delete room if empty
+      // ✅ ADD THIS (VERY IMPORTANT)
+      io.to(roomId).emit("users-update", rooms[roomId].users);
+
       if (rooms[roomId].users.length === 0) {
         delete rooms[roomId];
       }

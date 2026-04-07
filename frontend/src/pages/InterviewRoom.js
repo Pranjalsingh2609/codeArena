@@ -21,53 +21,75 @@ const InterviewRoom = () => {
   const [users, setUsers] = useState([]);
 
   const chatRef = useRef(null);
+
   useEffect(() => {
-    socket.emit("join-room", {
-      roomId,
-      username: "User-" + Math.floor(Math.random() * 1000),
-    });
+    const username = "User-" + Math.floor(Math.random() * 1000);
 
-    // 🔥 CLEAR OLD LISTENERS (VERY IMPORTANT)
-    socket.off("sync-code");
-    socket.off("language-update");
-    socket.off("chat-history");
-    socket.off("receive-message");
-    socket.off("users-update");
+    socket.emit("join-room", { roomId, username });
 
-    // ✅ Now attach fresh listeners
-    socket.on("sync-code", (data) => {
+    // 🔥 CLEAR OLD LISTENERS
+    const events = [
+      "init",
+      "language-update",
+      "receive-message",
+      "users-update",
+      "code-update",
+      "user-joined",
+    ];
+    events.forEach((e) => socket.off(e));
+
+    // ✅ INIT
+    socket.on("init", (data) => {
       setCode(data.code);
       setLanguage(data.language);
+      setUsers(data.users);
+      setMessages(data.messages);
     });
 
-    socket.on("language-update", (lang) => setLanguage(lang));
-    socket.on("chat-history", (msgs) => setMessages(msgs));
+    // ✅ LANGUAGE
+    socket.on("language-update", setLanguage);
 
-    socket.on("receive-message", (msg) =>
-      setMessages((prev) => [...prev, msg]),
-    );
+    // ✅ CODE SYNC (SAFE)
+    socket.on("code-update", (newCode) => {
+      setCode((prev) => (prev !== newCode ? newCode : prev));
+    });
 
-    socket.on("users-update", (usersList) => {
-      setUsers(usersList);
+    // ✅ CHAT
+    socket.on("receive-message", (msg) => {
+      setMessages((prev) => [...prev, msg]);
+    });
+
+    // ✅ USERS FULL UPDATE
+    socket.on("users-update", setUsers);
+
+    // ✅ USER JOINED (NO DUPLICATES)
+    socket.on("user-joined", (user) => {
+      setUsers((prev) =>
+        prev.find((u) => u.id === user.id) ? prev : [...prev, user]
+      );
     });
 
     return () => {
-      socket.off("sync-code");
-      socket.off("language-update");
-      socket.off("chat-history");
-      socket.off("receive-message");
-      socket.off("users-update");
+      events.forEach((e) => socket.off(e));
     };
   }, [roomId]);
 
+  // ✅ AUTO SCROLL CHAT
   useEffect(() => {
-    if (chatRef.current)
+    if (chatRef.current) {
       chatRef.current.scrollTop = chatRef.current.scrollHeight;
+    }
   }, [messages]);
 
+  // ✅ SEND MESSAGE (FIXED FORMAT)
   const sendMessage = () => {
     if (!input.trim()) return;
-    socket.emit("send-message", { roomId, message: input });
+
+    socket.emit("send-message", {
+      roomId,
+      text: input, // ✅ FIXED
+    });
+
     setInput("");
   };
 
@@ -171,6 +193,7 @@ const InterviewRoom = () => {
     },
   };
 
+
   return (
     <div style={styles.page}>
       {/* Top Bar */}
@@ -194,16 +217,9 @@ const InterviewRoom = () => {
         <div style={styles.sidebar}>
           <VideoCall roomId={roomId} />
 
+          {/* Participants */}
           <div style={{ marginBottom: "10px" }}>
-            <h4
-              style={{
-                fontSize: "14px",
-                marginBottom: "6px",
-                color: "#38bdf8",
-              }}
-            >
-              👥 Participants
-            </h4>
+            <h4 style={{ color: "#38bdf8" }}>👥 Participants</h4>
 
             {users.length === 0 ? (
               <div style={{ fontSize: "12px", color: "#64748b" }}>
@@ -211,26 +227,18 @@ const InterviewRoom = () => {
               </div>
             ) : (
               users.map((u) => (
-                <div
-                  key={u.id}
-                  style={{
-                    fontSize: "13px",
-                    padding: "4px 6px",
-                    borderRadius: "6px",
-                    background: "#0f172a",
-                    marginBottom: "4px",
-                  }}
-                >
+                <div key={u.id} style={{ padding: "4px", marginBottom: "4px" }}>
                   👤 {u.name}
                 </div>
               ))
             )}
           </div>
 
+          {/* Chat */}
           <div style={styles.chatBox}>
             <div ref={chatRef} style={styles.messages}>
               {messages.map((msg, i) => (
-                <div key={i} style={{ marginBottom: "6px" }}>
+                <div key={i}>
                   <strong>{msg.user}</strong>: {msg.text}
                 </div>
               ))}
@@ -240,6 +248,7 @@ const InterviewRoom = () => {
               <input
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && sendMessage()}
                 placeholder="Type message..."
                 style={styles.input}
               />
@@ -250,7 +259,7 @@ const InterviewRoom = () => {
           </div>
         </div>
 
-        {/* Editor + Console + Analysis */}
+        {/* Editor */}
         <div style={styles.editorSection}>
           <div style={styles.editorContainer}>
             <CodeEditor
@@ -262,7 +271,11 @@ const InterviewRoom = () => {
           </div>
 
           <div style={styles.consoleContainer}>
-            <CodeRunner code={code} setOutput={setOutput} language={language} />
+            <CodeRunner
+              code={code}
+              setOutput={setOutput}
+              language={language}
+            />
             <OutputConsole output={output} />
           </div>
 
@@ -274,5 +287,8 @@ const InterviewRoom = () => {
     </div>
   );
 };
+
+
+
 
 export default InterviewRoom;

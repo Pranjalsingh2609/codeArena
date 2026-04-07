@@ -7,35 +7,37 @@ const CodeEditor = ({ code, setCode, roomId, language = "javascript" }) => {
   const debounceRef = useRef(null);
   const isRemoteUpdate = useRef(false);
 
-  // 🚀 Handle code changes (optimized + debounced)
+  // 🚀 Handle code changes (debounced + safe)
   const handleChange = useCallback(
     (value) => {
       if (value === undefined) return;
 
-      setCode(value);
-
+      // prevent loop when update comes from socket
       if (isRemoteUpdate.current) {
         isRemoteUpdate.current = false;
         return;
       }
 
+      setCode(value);
+
+      // debounce emit
       if (debounceRef.current) {
         clearTimeout(debounceRef.current);
       }
 
       debounceRef.current = setTimeout(() => {
-        socket.emit("code-change", {
+        socket.emit("code-update", {
           roomId,
           code: value,
         });
-      }, 400);
+      }, 300);
     },
-    [roomId, setCode],
+    [roomId, setCode]
   );
 
   // 📡 Listen for incoming code updates
   useEffect(() => {
-    const handleIncomingCode = (newCode) => {
+    const handleIncomingCode = ({ code: newCode }) => {
       isRemoteUpdate.current = true;
       setCode(newCode);
     };
@@ -51,11 +53,10 @@ const CodeEditor = ({ code, setCode, roomId, language = "javascript" }) => {
   const handleEditorDidMount = (editor) => {
     editorRef.current = editor;
 
-    // 🔥 Ensure layout + cursor visibility
     setTimeout(() => {
       editor.layout();
       editor.focus();
-    }, 150);
+    }, 100);
   };
 
   // 📐 Resize handling
@@ -91,10 +92,10 @@ const CodeEditor = ({ code, setCode, roomId, language = "javascript" }) => {
   );
 };
 
-// 🎨 Clean styles (production friendly)
+// 🎨 Styles
 const styles = {
   container: {
-    height: "400px", // ✅ fixed height (prevents layout bugs)
+    height: "100%", // ✅ FIXED (important for layout)
     width: "100%",
     borderRadius: "10px",
     overflow: "hidden",
@@ -104,25 +105,19 @@ const styles = {
   },
 };
 
-// ⚙️ Monaco options (stable + optimized)
+// ⚙️ Editor options
 const editorOptions = {
   fontSize: 16,
   fontFamily: "Fira Code, monospace",
   minimap: { enabled: false },
   wordWrap: "on",
   tabSize: 2,
-
   automaticLayout: true,
   scrollBeyondLastLine: false,
-
-  // 🔥 Cursor fix
   cursorBlinking: "blink",
   cursorStyle: "line",
   cursorWidth: 2,
-
   smoothScrolling: true,
-
-  // 🔥 Prevent cursor clipping
   padding: { top: 10 },
   lineHeight: 22,
 };
