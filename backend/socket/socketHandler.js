@@ -1,13 +1,14 @@
-// socket/socketHandler.js
-// Handles real-time code collaboration and AI-powered analysis
-
 const { runStaticAnalysis } = require("../utils/staticAnalysis");
 const { analyzeCodeWithAI } = require("../utils/aiAnalysis");
 
-const rooms = {}; // Stores room data: code, language, users, etc.
+const rooms = {}; 
+const debounceTimers = {};
+const aiCache = new Map();
+
 
 module.exports = (io, socket) => {
-  // User joins a room
+
+  //JOIN ROOM
   socket.on("join-room", ({ roomId, username }) => {
     socket.join(roomId);
 
@@ -47,15 +48,14 @@ module.exports = (io, socket) => {
     io.to(roomId).emit("users-update", rooms[roomId].users);
   });
 
-  const debounceTimers = {};
-  const aiCache = new Map();
+
 
   socket.on("code-change", ({ roomId, code }) => {
     if (!rooms[roomId]) return;
 
     rooms[roomId].code = code;
 
-    socket.to(roomId).emit("code-update", code);
+    socket.to(roomId).emit("code-update", { code });
 
     // 🧠 STATIC ANALYSIS (fast → keep immediate)
     const staticIssues = runStaticAnalysis(code, rooms[roomId].language);
@@ -127,8 +127,26 @@ module.exports = (io, socket) => {
 
     socket.to(roomId).emit("language-update", language);
 
-    console.log(`Room ${roomId} language changed to ${language}`);
   });
+
+
+  // 💬 CHAT MESSAGE
+  socket.on("send-message", ({ roomId, message }) => {
+    if (!rooms[roomId]) return;
+
+    const newMessage = {
+      user: socket.user?.email || "Anonymous",
+      text: message,
+      time: new Date().toISOString(),
+    };
+
+    // Save message
+    rooms[roomId].messages.push(newMessage);
+
+    // Broadcast to room
+    io.to(roomId).emit("receive-message", newMessage);
+  });
+
 
   // Handle disconnection
   socket.on("disconnect", () => {
@@ -148,20 +166,4 @@ module.exports = (io, socket) => {
     }
   });
 
-  // 💬 CHAT MESSAGE
-  socket.on("send-message", ({ roomId, message }) => {
-    if (!rooms[roomId]) return;
-
-    const newMessage = {
-      user: socket.user?.email || "Anonymous",
-      text: message,
-      time: new Date().toISOString(),
-    };
-
-    // Save message
-    rooms[roomId].messages.push(newMessage);
-
-    // Broadcast to room
-    io.to(roomId).emit("receive-message", newMessage);
-  });
-};
+  };

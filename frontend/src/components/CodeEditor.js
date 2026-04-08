@@ -4,42 +4,55 @@ import { socket } from "../socket";
 
 const CodeEditor = ({ code, setCode, roomId, language = "javascript" }) => {
   const editorRef = useRef(null);
-  const debounceRef = useRef(null);
   const isRemoteUpdate = useRef(false);
 
-  // 🚀 Handle code changes (debounced + safe)
+  // 🚀 Handle local typing (INSTANT EMIT)
   const handleChange = useCallback(
     (value) => {
       if (value === undefined) return;
 
-      // prevent loop when update comes from socket
+      // جلوگیری infinite loop
       if (isRemoteUpdate.current) {
         isRemoteUpdate.current = false;
         return;
       }
 
+      // update local state
       setCode(value);
 
-      // debounce emit
-      if (debounceRef.current) {
-        clearTimeout(debounceRef.current);
-      }
-
-      debounceRef.current = setTimeout(() => {
-        socket.emit("code-update", {
-          roomId,
-          code: value,
-        });
-      }, 300);
+      // ⚡ instant emit (no debounce)
+      socket.emit("code-update", {
+        roomId,
+        code: value,
+      });
     },
     [roomId, setCode]
   );
 
-  // 📡 Listen for incoming code updates
+  // 📡 Listen for remote updates (REAL-TIME)
   useEffect(() => {
     const handleIncomingCode = ({ code: newCode }) => {
+      const editor = editorRef.current;
+      if (!editor) return;
+
+      const currentCode = editor.getValue();
+
+      // prevent unnecessary updates
+      if (newCode === currentCode) return;
+
+      // save cursor position
+      const cursorPosition = editor.getPosition();
+
+      // mark as remote update
       isRemoteUpdate.current = true;
-      setCode(newCode);
+
+      // 🔥 direct update (no React delay)
+      editor.setValue(newCode);
+
+      // restore cursor
+      if (cursorPosition) {
+        editor.setPosition(cursorPosition);
+      }
     };
 
     socket.on("code-update", handleIncomingCode);
@@ -47,7 +60,7 @@ const CodeEditor = ({ code, setCode, roomId, language = "javascript" }) => {
     return () => {
       socket.off("code-update", handleIncomingCode);
     };
-  }, [setCode]);
+  }, []);
 
   // 📌 Capture Monaco instance
   const handleEditorDidMount = (editor) => {
@@ -69,10 +82,6 @@ const CodeEditor = ({ code, setCode, roomId, language = "javascript" }) => {
 
     return () => {
       window.removeEventListener("resize", handleResize);
-
-      if (debounceRef.current) {
-        clearTimeout(debounceRef.current);
-      }
     };
   }, []);
 
@@ -95,7 +104,7 @@ const CodeEditor = ({ code, setCode, roomId, language = "javascript" }) => {
 // 🎨 Styles
 const styles = {
   container: {
-    height: "100%", // ✅ FIXED (important for layout)
+    height: "100%",
     width: "100%",
     borderRadius: "10px",
     overflow: "hidden",
