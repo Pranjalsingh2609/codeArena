@@ -1,4 +1,4 @@
-import React, { useCallback, useRef, useEffect, useState } from "react";
+import React, { useRef, useEffect, useState } from "react";
 import Editor from "@monaco-editor/react";
 import { socket } from "../socket";
 import * as monaco from "monaco-editor";
@@ -8,27 +8,29 @@ const CodeEditor = ({ roomId, username, language = "javascript" }) => {
   const editorRef = useRef(null);
   const isRemoteUpdate = useRef(false);
   const decorationsRef = useRef({});
-  const debounceTimer = useRef(null);
+
 
   // Debounced code emit
-  const handleChange = useCallback((value) => {
-    if (!editorRef.current || value === undefined) return;
-    if (isRemoteUpdate.current) {
-      isRemoteUpdate.current = false;
-      return;
-    }
+const handleChange = (value) => {
+  setCode(value);
+  socket.emit("code-change", { roomId, code: value });
+};
 
-    setCode(value);
+useEffect(() => {
+  socket.on("init", ({ code }) => setCode(code));
 
-    if (debounceTimer.current) clearTimeout(debounceTimer.current);
-    debounceTimer.current = setTimeout(() => {
-      const cursor = editorRef.current.getPosition();
-      socket.emit("code-change", { roomId, code: value, cursor });
-    }, 50); // 50ms debounce
-  }, [roomId]);
+  socket.on("code-update", ({ code }) => {
+    setCode(code);
+  });
+
+  return () => {
+    socket.off("init");
+    socket.off("code-update");
+  };
+}, []);
 
   useEffect(() => {
-    socket.emit("join-room", { roomId, username });
+    
 
     const handleInit = ({ code: initCode, cursors }) => {
       if (!editorRef.current) return;

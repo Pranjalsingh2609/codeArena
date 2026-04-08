@@ -2,107 +2,92 @@ const { runStaticAnalysis } = require("../utils/staticAnalysis");
 const { analyzeCodeWithAI } = require("../utils/aiAnalysis");
 
 const rooms = {};
-const debounceTimers = {};
 const aiCache = new Map();
 
 module.exports = (io, socket) => {
-  // JOIN ROOM
+
+  // ================= JOIN ROOM =================
   socket.on("join-room", ({ roomId, username }) => {
     socket.join(roomId);
-    if (!rooms[roomId]) rooms[roomId] = { code: "", language: "javascript", users: [], cursors: {}, messages: [] };
 
-    if (!rooms[roomId].users.find((u) => u.id === socket.id)) {
-      rooms[roomId].users.push({ id: socket.id, name: username });
+    if (!rooms[roomId]) {
+      rooms[roomId] = {
+        code: "",
+        language: "javascript",
+        users: [],
+      };
     }
 
-    // Emit INIT
-    socket.emit("init", {
-      code: rooms[roomId].code,
-      language: rooms[roomId].language,
-      users: rooms[roomId].users,
-      cursors: rooms[roomId].cursors,
-      messages: rooms[roomId].messages,
+    rooms[roomId].users.push({ id: socket.id, name: username });
+
+    socket.emit("init", rooms[roomId]);
+
+    // 🔥 IMPORTANT
+    socket.to(roomId).emit("user-joined", {
+      id: socket.id,
+      name: username,
     });
 
-    socket.to(roomId).emit("user-joined", { id: socket.id, name: username });
     io.to(roomId).emit("users-update", rooms[roomId].users);
   });
 
-  // CODE CHANGE
-  socket.on("code-change", ({ roomId, code, cursor }) => {
+  // ================= CODE =================
+  socket.on("code-change", ({ roomId, code }) => {
     if (!rooms[roomId]) return;
 
     rooms[roomId].code = code;
-    rooms[roomId].cursors[socket.id] = cursor;
 
-    io.to(roomId).emit("code-update", { code, cursorId: socket.id, cursor });
+    socket.to(roomId).emit("code-update", { code });
 
-    // Static analysis
-    const staticIssues = runStaticAnalysis(code, rooms[roomId].language);
+    const staticIssues = runStaticAnalysis(code);
     io.to(roomId).emit("ai-suggestions", staticIssues);
-
-    // AI analysis debounce
-    if (debounceTimers[roomId]) clearTimeout(debounceTimers[roomId]);
-    debounceTimers[roomId] = setTimeout(async () => {
-      try {
-        const key = code.slice(0, 200);
-        if (aiCache.has(key)) {
-          io.to(roomId).emit("ai-suggestions", aiCache.get(key));
-          return;
-        }
-        const aiIssues = await analyzeCodeWithAI(code, rooms[roomId].language);
-        aiCache.set(key, aiIssues);
-        io.to(roomId).emit("ai-suggestions", aiIssues);
-      } catch (err) {
-        console.error("AI error:", err);
-      }
-    }, 800);
   });
 
-  // CURSOR CHANGE
-  socket.on("cursor-change", ({ roomId, cursor }) => {
-    if (!rooms[roomId]) return;
-    rooms[roomId].cursors[socket.id] = cursor;
-    socket.to(roomId).emit("cursor-update", { cursorId: socket.id, cursor });
-  });
-
-  // LANGUAGE CHANGE
+  // ================= LANGUAGE =================
   socket.on("language-change", ({ roomId, language }) => {
     if (!rooms[roomId]) return;
     rooms[roomId].language = language;
     socket.to(roomId).emit("language-update", language);
   });
 
-  // CHAT
-  socket.on("send-message", ({ roomId, text }) => {
-    if (!rooms[roomId]) return;
-    const message = { user: socket.user?.email || "Anonymous", text, time: new Date().toISOString() };
-    rooms[roomId].messages.push(message);
-    io.to(roomId).emit("receive-message", message);
-  });
-
-  // VIDEO CALL SIGNALING
+  // ================= VIDEO =================
   socket.on("join-video", (roomId) => {
-    socket.join(roomId);
-    const others = Array.from(io.sockets.adapter.rooms.get(roomId) || []).filter((id) => id !== socket.id);
-    socket.emit("all-users", others);
+    const users = Array.from(io.sockets.adapter.rooms.get(roomId) || []);
+
+    const otherUsers = users.filter(id => id !== socket.id);
+
+    socket.emit("all-users", otherUsers);
+
+    // 🔥 FIX (MOST IMPORTANT)
+    socket.to(roomId).emit("user-joined-video", socket.id);
   });
 
   socket.on("sending-signal", ({ userToSignal, signal }) => {
-    io.to(userToSignal).emit("receiving-signal", { signal, from: socket.id });
+    io.to(userToSignal).emit("receiving-signal", {
+      signal,
+      from: socket.id,
+    });
   });
 
   socket.on("returning-signal", ({ signal, to }) => {
-    io.to(to).emit("signal-returned", { signal, from: socket.id });
+    io.to(to).emit("signal-returned", {
+      signal,
+      from: socket.id,
+    });
   });
 
-  // DISCONNECT
+  // ================= DISCONNECT =================
   socket.on("disconnect", () => {
     for (const roomId in rooms) {
-      rooms[roomId].users = rooms[roomId].users.filter((u) => u.id !== socket.id);
-      delete rooms[roomId].cursors[socket.id];
+      rooms[roomId].users =
+        rooms[roomId].users.filter(u => u.id !== socket.id);
+
+      socket.to(roomId).emit("user-left", socket.id);
       io.to(roomId).emit("users-update", rooms[roomId].users);
-      if (rooms[roomId].users.length === 0) delete rooms[roomId];
+
+      if (rooms[roomId].users.length === 0) {
+        delete rooms[roomId];
+      }
     }
   });
 };

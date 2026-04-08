@@ -49,61 +49,57 @@ const VideoCall = ({ roomId, username }) => {
     return peer;
   }, []);
 
-  useEffect(() => {
-    let stream;
-    const peersAtMount = []; // snapshot for safe cleanup
+useEffect(() => {
+  let stream;
 
-    const startVideo = async () => {
-      try {
-        stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-        if (myVideo.current) myVideo.current.srcObject = stream;
+  const start = async () => {
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({
+        video: true,
+        audio: true,
+      });
 
-        socket.emit("join-video", roomId, username);
+      myVideo.current.srcObject = stream;
 
-        socket.on("all-users", users => {
-          users.forEach(userId => {
-            const peer = createPeer(userId, stream);
-            peersRef.current.push({ peerID: userId, peer });
-            peersAtMount.push({ peerID: userId, peer });
-          });
-        });
+      socket.emit("join-video", roomId);
 
-        socket.on("user-joined-video", userId => {
-          const peer = addPeer(userId, stream);
+      socket.on("all-users", (users) => {
+        users.forEach(userId => {
+          const peer = createPeer(userId, stream);
           peersRef.current.push({ peerID: userId, peer });
-          peersAtMount.push({ peerID: userId, peer });
         });
+      });
 
-        socket.on("receiving-signal", ({ signal, from }) => {
-          const item = peersRef.current.find(p => p.peerID === from);
-          if (item) item.peer.signal(signal);
-        });
+      socket.on("user-joined-video", (userId) => {
+        const peer = addPeer(userId, stream);
+        peersRef.current.push({ peerID: userId, peer });
+      });
 
-        socket.on("signal-returned", ({ signal, from }) => {
-          const item = peersRef.current.find(p => p.peerID === from);
-          if (item) item.peer.signal(signal);
-        });
-      } catch (err) {
-        setError("Camera or microphone access denied.");
-      }
-    };
+      socket.on("receiving-signal", ({ signal, from }) => {
+        const item = peersRef.current.find(p => p.peerID === from);
+        if (item) item.peer.signal(signal);
+      });
 
-    startVideo();
+      socket.on("signal-returned", ({ signal, from }) => {
+        const item = peersRef.current.find(p => p.peerID === from);
+        if (item) item.peer.signal(signal);
+      });
 
-    return () => {
-      // Stop local stream
-      if (stream) stream.getTracks().forEach(track => track.stop());
+    } catch (err) {
+      console.error(err);
+      setError("Camera/Microphone permission denied ❌");
+    }
+  };
 
-      // Destroy all peers created in this effect
-      peersAtMount.forEach(p => p.peer.destroy());
+  start();
 
-      // Remove all socket listeners
-      socket.off("all-users");
-      socket.off("user-joined-video");
-      socket.off("receiving-signal");
-      socket.off("signal-returned");
-    };
-  }, [roomId, username, addPeer, createPeer]);
+  return () => {
+    socket.off("all-users");
+    socket.off("user-joined-video");
+    socket.off("receiving-signal");
+    socket.off("signal-returned");
+  };
+}, [roomId, createPeer, addPeer]);
 
   const toggleMute = () => {
     if (myVideo.current?.srcObject) {
