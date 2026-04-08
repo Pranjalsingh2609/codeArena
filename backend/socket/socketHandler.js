@@ -5,10 +5,8 @@ const rooms = {};
 const debounceTimers = {};
 const aiCache = new Map();
 
-
 module.exports = (io, socket) => {
-
-  //JOIN ROOM
+  // 🟢 JOIN ROOM
   socket.on("join-room", ({ roomId, username }) => {
     socket.join(roomId);
 
@@ -17,118 +15,87 @@ module.exports = (io, socket) => {
         code: "",
         language: "javascript",
         users: [],
+        cursors: {}, // track each user's cursor
         messages: [],
       };
     }
 
-    const existingUser = rooms[roomId].users.find((u) => u.id === socket.id);
-
-    if (!existingUser) {
-      rooms[roomId].users.push({
-        id: socket.id,
-        name: username,
-      });
+    // add user if new
+    if (!rooms[roomId].users.find(u => u.id === socket.id)) {
+      rooms[roomId].users.push({ id: socket.id, name: username });
     }
 
-    // ✅ Send full data to NEW USER
+    // 🔹 Send current room data to NEW USER
     socket.emit("init", {
       code: rooms[roomId].code,
       language: rooms[roomId].language,
       users: rooms[roomId].users,
+      cursors: rooms[roomId].cursors,
       messages: rooms[roomId].messages,
     });
 
-    // ✅ Notify OTHERS
-    socket.to(roomId).emit("user-joined", {
-      id: socket.id,
-      name: username,
-    });
+    // 🔹 Notify OTHERS that someone joined
+    socket.to(roomId).emit("user-joined", { id: socket.id, name: username });
 
-    // ✅ Sync users for everyone
+    // 🔹 Broadcast updated users list
     io.to(roomId).emit("users-update", rooms[roomId].users);
   });
 
-
-
-  socket.on("code-change", ({ roomId, code }) => {
+  // 🖊️ CODE CHANGE (real-time)
+  socket.on("code-change", ({ roomId, code, cursor }) => {
     if (!rooms[roomId]) return;
 
     rooms[roomId].code = code;
+    rooms[roomId].cursors[socket.id] = cursor; // save cursor
 
-    socket.to(roomId).emit("code-update", { code });
+    // Broadcast updated code & cursor to all users except sender
+    socket.to(roomId).emit("code-update", {
+      code,
+      cursorId: socket.id,
+      cursor,
+    });
 
-    // 🧠 STATIC ANALYSIS (fast → keep immediate)
+    // 🧠 STATIC ANALYSIS
     const staticIssues = runStaticAnalysis(code, rooms[roomId].language);
     io.to(roomId).emit("ai-suggestions", staticIssues);
 
     // 🚀 AI ANALYSIS (debounced)
-    if (debounceTimers[roomId]) {
-      clearTimeout(debounceTimers[roomId]);
-    }
-
+    if (debounceTimers[roomId]) clearTimeout(debounceTimers[roomId]);
     debounceTimers[roomId] = setTimeout(async () => {
       try {
-        const cacheKey = code.slice(0, 200); // simple hash substitute
-
+        const cacheKey = code.slice(0, 200);
         if (aiCache.has(cacheKey)) {
           io.to(roomId).emit("ai-suggestions", aiCache.get(cacheKey));
           return;
         }
 
         const aiIssues = await analyzeCodeWithAI(code, rooms[roomId].language);
-
         aiCache.set(cacheKey, aiIssues);
-
         io.to(roomId).emit("ai-suggestions", aiIssues);
       } catch (err) {
         console.error("AI Error:", err);
       }
-    }, 1200); // 🧠 1.2 sec debounce
+    }, 800); // debounced 0.8s
   });
 
-  // 🎥 VIDEO SIGNALING
-
-  socket.on("join-video", (roomId) => {
-    socket.join(roomId);
-
-    const clients = Array.from(io.sockets.adapter.rooms.get(roomId) || []);
-
-    // Notify others someone joined
-    socket.to(roomId).emit("user-joined-video", socket.id);
-
-    // Send existing users list to new user
-    socket.emit(
-      "all-users",
-      clients.filter((id) => id !== socket.id),
-    );
-  });
-
-  // 📡 Sending signal (offer/answer)
-  socket.on("sending-signal", ({ userToSignal, signal }) => {
-    io.to(userToSignal).emit("receiving-signal", {
-      signal,
-      from: socket.id,
-    });
-  });
-
-  // 📡 Returning signal
-  socket.on("returning-signal", ({ signal, to }) => {
-    io.to(to).emit("signal-returned", {
-      signal,
-      from: socket.id,
-    });
-  });
-
-  // User changes language
-  socket.on("language-change", ({ roomId, language }) => {
+  // 🖱️ CURSOR MOVE
+  socket.on("cursor-change", ({ roomId, cursor }) => {
     if (!rooms[roomId]) return;
 
-    rooms[roomId].language = language;
+    rooms[roomId].cursors[socket.id] = cursor;
 
-    socket.to(roomId).emit("language-update", language);
-
+    socket.to(roomId).emit("cursor-update", {
+      cursorId: socket.id,
+      cursor,
+    });
   });
 
+  // 🌐 LANGUAGE CHANGE
+  socket.on("language-change", ({ roomId, language }) => {
+    if (!rooms[roomId]) return;
+    rooms[roomId].language = language;
+    socket.to(roomId).emit("language-update", language);
+  });
 
   // 💬 CHAT MESSAGE
   socket.on("send-message", ({ roomId, message }) => {
@@ -140,30 +107,19 @@ module.exports = (io, socket) => {
       time: new Date().toISOString(),
     };
 
-    // Save message
     rooms[roomId].messages.push(newMessage);
-
-    // Broadcast to room
     io.to(roomId).emit("receive-message", newMessage);
   });
 
-
-  // Handle disconnection
+  // 🚪 DISCONNECT
   socket.on("disconnect", () => {
-    console.log(`User disconnected: ${socket.id}`);
-
     for (const roomId in rooms) {
-      rooms[roomId].users = rooms[roomId].users.filter(
-        (user) => user.id !== socket.id,
-      );
+      rooms[roomId].users = rooms[roomId].users.filter(u => u.id !== socket.id);
+      delete rooms[roomId].cursors[socket.id];
 
-      // ✅ ADD THIS (VERY IMPORTANT)
       io.to(roomId).emit("users-update", rooms[roomId].users);
 
-      if (rooms[roomId].users.length === 0) {
-        delete rooms[roomId];
-      }
+      if (rooms[roomId].users.length === 0) delete rooms[roomId];
     }
   });
-
-  };
+};

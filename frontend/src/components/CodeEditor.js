@@ -6,83 +6,72 @@ const CodeEditor = ({ code, setCode, roomId, language = "javascript" }) => {
   const editorRef = useRef(null);
   const isRemoteUpdate = useRef(false);
 
-  // 🚀 Handle local typing (INSTANT EMIT)
-  const handleChange = useCallback(
-    (value) => {
-      if (value === undefined) return;
+  // 🔹 Local typing
+  const handleChange = useCallback((value) => {
+    if (!editorRef.current || value === undefined) return;
 
-      // جلوگیری infinite loop
-      if (isRemoteUpdate.current) {
-        isRemoteUpdate.current = false;
-        return;
-      }
+    if (isRemoteUpdate.current) {
+      isRemoteUpdate.current = false;
+      return;
+    }
 
-      // update local state
-      setCode(value);
+    const cursor = editorRef.current.getPosition();
+    setCode(value);
 
-      // ⚡ instant emit (no debounce)
-      socket.emit("code-change", {
-        roomId,
-        code: value,
-      });
-    },
-    [roomId, setCode],
-  );
+    // Emit code + cursor
+    socket.emit("code-change", { roomId, code: value, cursor });
+  }, [roomId, setCode]);
 
-  // 📡 Listen for remote updates (REAL-TIME)
+  // 🔹 Listen for remote code updates
   useEffect(() => {
-    const handleIncomingCode = ({ code: newCode }) => {
+    const handleIncomingCode = ({ code: newCode, cursorId, cursor }) => {
       const editor = editorRef.current;
       if (!editor) return;
 
       const currentCode = editor.getValue();
       if (newCode === currentCode) return;
 
-      // save cursor position
-      const cursorPosition = editor.getPosition();
-
-      // mark as remote change
+      const localCursor = editor.getPosition();
       isRemoteUpdate.current = true;
-
-      // 🔥 direct change (no React delay)
       editor.setValue(newCode);
 
       setCode(newCode);
 
-      // restore cursor
-      if (cursorPosition) {
-        editor.setPosition(cursorPosition);
+      // Restore local cursor if this update is from another user
+      if (localCursor) editor.setPosition(localCursor);
+
+      // Optionally: show remote cursors (requires decorations)
+      if (cursorId && cursor) {
+        editor.deltaDecorations(
+          [],
+          [{
+            range: new editorRef.current.constructor.Range(
+              cursor.lineNumber,
+              cursor.column,
+              cursor.lineNumber,
+              cursor.column
+            ),
+            options: { className: "remote-cursor" }
+          }]
+        );
       }
     };
 
     socket.on("code-update", handleIncomingCode);
-
-    return () => {
-      socket.off("code-update", handleIncomingCode);
-    };
+    return () => socket.off("code-update", handleIncomingCode);
   }, [setCode]);
 
-  // 📌 Capture Monaco instance
+  // 🔹 Capture Monaco instance
   const handleEditorDidMount = (editor) => {
     editorRef.current = editor;
-
-    setTimeout(() => {
-      editor.layout();
-      editor.focus();
-    }, 100);
+    setTimeout(() => { editor.layout(); editor.focus(); }, 100);
   };
 
-  // 📐 Resize handling
+  // 🔹 Resize
   useEffect(() => {
-    const handleResize = () => {
-      editorRef.current?.layout();
-    };
-
+    const handleResize = () => editorRef.current?.layout();
     window.addEventListener("resize", handleResize);
-
-    return () => {
-      window.removeEventListener("resize", handleResize);
-    };
+    return () => window.removeEventListener("resize", handleResize);
   }, []);
 
   return (
@@ -91,7 +80,7 @@ const CodeEditor = ({ code, setCode, roomId, language = "javascript" }) => {
         height="100%"
         width="100%"
         language={language}
-        defaultValue={code || ""}
+        value={code}
         theme="vs-dark"
         onChange={handleChange}
         onMount={handleEditorDidMount}
@@ -101,12 +90,11 @@ const CodeEditor = ({ code, setCode, roomId, language = "javascript" }) => {
   );
 };
 
-// 🎨 Styles
 const styles = {
   container: {
     height: "100%",
     width: "100%",
-    borderRadius: "10px",
+    borderRadius: 10,
     overflow: "hidden",
     background: "#1e1e1e",
     border: "1px solid #2d3748",
@@ -114,7 +102,6 @@ const styles = {
   },
 };
 
-// ⚙️ Editor options
 const editorOptions = {
   fontSize: 16,
   fontFamily: "Fira Code, monospace",
