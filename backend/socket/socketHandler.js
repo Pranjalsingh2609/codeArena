@@ -6,18 +6,16 @@ const debounceTimers = {};
 const aiCache = new Map();
 
 module.exports = (io, socket) => {
-  // 🔹 JOIN ROOM
+  // JOIN ROOM
   socket.on("join-room", ({ roomId, username }) => {
     socket.join(roomId);
+    if (!rooms[roomId]) rooms[roomId] = { code: "", language: "javascript", users: [], cursors: {}, messages: [] };
 
-    if (!rooms[roomId]) {
-      rooms[roomId] = { code: "", language: "javascript", users: [], cursors: {}, messages: [] };
-    }
-
-    if (!rooms[roomId].users.find(u => u.id === socket.id)) {
+    if (!rooms[roomId].users.find((u) => u.id === socket.id)) {
       rooms[roomId].users.push({ id: socket.id, name: username });
     }
 
+    // Emit INIT
     socket.emit("init", {
       code: rooms[roomId].code,
       language: rooms[roomId].language,
@@ -30,7 +28,7 @@ module.exports = (io, socket) => {
     io.to(roomId).emit("users-update", rooms[roomId].users);
   });
 
-  // 🔹 CODE CHANGE
+  // CODE CHANGE
   socket.on("code-change", ({ roomId, code, cursor }) => {
     if (!rooms[roomId]) return;
 
@@ -43,51 +41,51 @@ module.exports = (io, socket) => {
     const staticIssues = runStaticAnalysis(code, rooms[roomId].language);
     io.to(roomId).emit("ai-suggestions", staticIssues);
 
-    // AI suggestions debounce
+    // AI analysis debounce
     if (debounceTimers[roomId]) clearTimeout(debounceTimers[roomId]);
     debounceTimers[roomId] = setTimeout(async () => {
       try {
-        const cacheKey = code.slice(0, 200);
-        if (aiCache.has(cacheKey)) {
-          io.to(roomId).emit("ai-suggestions", aiCache.get(cacheKey));
+        const key = code.slice(0, 200);
+        if (aiCache.has(key)) {
+          io.to(roomId).emit("ai-suggestions", aiCache.get(key));
           return;
         }
         const aiIssues = await analyzeCodeWithAI(code, rooms[roomId].language);
-        aiCache.set(cacheKey, aiIssues);
+        aiCache.set(key, aiIssues);
         io.to(roomId).emit("ai-suggestions", aiIssues);
       } catch (err) {
-        console.error("AI Error:", err);
+        console.error("AI error:", err);
       }
     }, 800);
   });
 
-  // 🔹 CURSOR CHANGE
+  // CURSOR CHANGE
   socket.on("cursor-change", ({ roomId, cursor }) => {
     if (!rooms[roomId]) return;
     rooms[roomId].cursors[socket.id] = cursor;
     socket.to(roomId).emit("cursor-update", { cursorId: socket.id, cursor });
   });
 
-  // 🔹 LANGUAGE CHANGE
+  // LANGUAGE CHANGE
   socket.on("language-change", ({ roomId, language }) => {
     if (!rooms[roomId]) return;
     rooms[roomId].language = language;
     socket.to(roomId).emit("language-update", language);
   });
 
-  // 🔹 CHAT
-  socket.on("send-message", ({ roomId, message }) => {
+  // CHAT
+  socket.on("send-message", ({ roomId, text }) => {
     if (!rooms[roomId]) return;
-    const newMessage = { user: socket.user?.email || "Anonymous", text: message, time: new Date().toISOString() };
-    rooms[roomId].messages.push(newMessage);
-    io.to(roomId).emit("receive-message", newMessage);
+    const message = { user: socket.user?.email || "Anonymous", text, time: new Date().toISOString() };
+    rooms[roomId].messages.push(message);
+    io.to(roomId).emit("receive-message", message);
   });
 
-  // 🔹 VIDEO CALL SIGNALING
+  // VIDEO CALL SIGNALING
   socket.on("join-video", (roomId) => {
     socket.join(roomId);
-    const otherUsers = Array.from(io.sockets.adapter.rooms.get(roomId) || []).filter(id => id !== socket.id);
-    socket.emit("all-users", otherUsers);
+    const others = Array.from(io.sockets.adapter.rooms.get(roomId) || []).filter((id) => id !== socket.id);
+    socket.emit("all-users", others);
   });
 
   socket.on("sending-signal", ({ userToSignal, signal }) => {
@@ -98,10 +96,10 @@ module.exports = (io, socket) => {
     io.to(to).emit("signal-returned", { signal, from: socket.id });
   });
 
-  // 🔹 DISCONNECT
+  // DISCONNECT
   socket.on("disconnect", () => {
     for (const roomId in rooms) {
-      rooms[roomId].users = rooms[roomId].users.filter(u => u.id !== socket.id);
+      rooms[roomId].users = rooms[roomId].users.filter((u) => u.id !== socket.id);
       delete rooms[roomId].cursors[socket.id];
       io.to(roomId).emit("users-update", rooms[roomId].users);
       if (rooms[roomId].users.length === 0) delete rooms[roomId];
