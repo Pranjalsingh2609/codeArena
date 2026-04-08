@@ -13,13 +13,13 @@ const VideoCall = ({ roomId, username }) => {
   const addPeer = useCallback((incomingId, stream) => {
     const peer = new Peer({ initiator: false, trickle: false, stream });
 
-    peer.on("signal", signal => {
+    peer.on("signal", (signal) => {
       socket.emit("returning-signal", { signal, to: incomingId });
     });
 
-    peer.on("stream", remoteStream => {
-      setPeers(prev => {
-        if (!prev.find(p => p.id === incomingId)) {
+    peer.on("stream", (remoteStream) => {
+      setPeers((prev) => {
+        if (!prev.find((p) => p.id === incomingId)) {
           return [...prev, { id: incomingId, stream: remoteStream }];
         }
         return prev;
@@ -33,13 +33,13 @@ const VideoCall = ({ roomId, username }) => {
   const createPeer = useCallback((userToSignal, stream) => {
     const peer = new Peer({ initiator: true, trickle: false, stream });
 
-    peer.on("signal", signal => {
+    peer.on("signal", (signal) => {
       socket.emit("sending-signal", { userToSignal, signal });
     });
 
-    peer.on("stream", remoteStream => {
-      setPeers(prev => {
-        if (!prev.find(p => p.id === userToSignal)) {
+    peer.on("stream", (remoteStream) => {
+      setPeers((prev) => {
+        if (!prev.find((p) => p.id === userToSignal)) {
           return [...prev, { id: userToSignal, stream: remoteStream }];
         }
         return prev;
@@ -49,57 +49,58 @@ const VideoCall = ({ roomId, username }) => {
     return peer;
   }, []);
 
-useEffect(() => {
-  let stream;
+  useEffect(() => {
+    let stream;
 
-  const start = async () => {
-    try {
-      stream = await navigator.mediaDevices.getUserMedia({
-        video: true,
-        audio: true,
-      });
+    const start = async () => {
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: true,
+          audio: true,
+        });
 
-      myVideo.current.srcObject = stream;
+        if (myVideo.current) {
+          myVideo.current.srcObject = stream;
+        }
 
-      socket.emit("join-video", roomId);
+        socket.emit("join-video", roomId);
 
-      socket.on("all-users", (users) => {
-        users.forEach(userId => {
-          const peer = createPeer(userId, stream);
+        socket.on("all-users", (users) => {
+          users.forEach((userId) => {
+            const peer = createPeer(userId, stream);
+            peersRef.current.push({ peerID: userId, peer });
+          });
+        });
+
+        socket.on("user-joined-video", (userId) => {
+          const peer = addPeer(userId, stream);
           peersRef.current.push({ peerID: userId, peer });
         });
-      });
 
-      socket.on("user-joined-video", (userId) => {
-        const peer = addPeer(userId, stream);
-        peersRef.current.push({ peerID: userId, peer });
-      });
+        socket.on("receiving-signal", ({ signal, from }) => {
+          const item = peersRef.current.find((p) => p.peerID === from);
+          if (item) item.peer.signal(signal);
+        });
 
-      socket.on("receiving-signal", ({ signal, from }) => {
-        const item = peersRef.current.find(p => p.peerID === from);
-        if (item) item.peer.signal(signal);
-      });
+        socket.on("signal-returned", ({ signal, from }) => {
+          const item = peersRef.current.find((p) => p.peerID === from);
+          if (item) item.peer.signal(signal);
+        });
+      } catch (err) {
+        console.error(err);
+        setError("Camera/Microphone permission denied ❌");
+      }
+    };
 
-      socket.on("signal-returned", ({ signal, from }) => {
-        const item = peersRef.current.find(p => p.peerID === from);
-        if (item) item.peer.signal(signal);
-      });
+    start();
 
-    } catch (err) {
-      console.error(err);
-      setError("Camera/Microphone permission denied ❌");
-    }
-  };
-
-  start();
-
-  return () => {
-    socket.off("all-users");
-    socket.off("user-joined-video");
-    socket.off("receiving-signal");
-    socket.off("signal-returned");
-  };
-}, [roomId, createPeer, addPeer]);
+    return () => {
+      socket.off("all-users");
+      socket.off("user-joined-video");
+      socket.off("receiving-signal");
+      socket.off("signal-returned");
+    };
+  }, [roomId, createPeer, addPeer]);
 
   const toggleMute = () => {
     if (myVideo.current?.srcObject) {
@@ -127,7 +128,7 @@ useEffect(() => {
         </div>
 
         {/* Remote Peers */}
-        {peers.map(peer => (
+        {peers.map((peer) => (
           <Video key={peer.id} stream={peer.stream} />
         ))}
       </div>
@@ -140,7 +141,14 @@ const Video = ({ stream }) => {
   useEffect(() => {
     if (ref.current) ref.current.srcObject = stream;
   }, [stream]);
-  return <video ref={ref} autoPlay playsInline style={{ width: 200, borderRadius: 10 }} />;
+  return (
+    <video
+      ref={ref}
+      autoPlay
+      playsInline
+      style={{ width: 200, borderRadius: 10 }}
+    />
+  );
 };
 
 export default VideoCall;
