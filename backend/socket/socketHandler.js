@@ -6,7 +6,6 @@ const debounceTimers = {};
 const aiCache = new Map();
 
 module.exports = (io, socket) => {
-
   // 🔹 JOIN ROOM
   socket.on("join-room", ({ roomId, username }) => {
     socket.join(roomId);
@@ -40,9 +39,11 @@ module.exports = (io, socket) => {
 
     io.to(roomId).emit("code-update", { code, cursorId: socket.id, cursor });
 
+    // Static analysis
     const staticIssues = runStaticAnalysis(code, rooms[roomId].language);
     io.to(roomId).emit("ai-suggestions", staticIssues);
 
+    // AI suggestions debounce
     if (debounceTimers[roomId]) clearTimeout(debounceTimers[roomId]);
     debounceTimers[roomId] = setTimeout(async () => {
       try {
@@ -74,22 +75,12 @@ module.exports = (io, socket) => {
     socket.to(roomId).emit("language-update", language);
   });
 
-  // 🔹 CHAT MESSAGE
+  // 🔹 CHAT
   socket.on("send-message", ({ roomId, message }) => {
     if (!rooms[roomId]) return;
     const newMessage = { user: socket.user?.email || "Anonymous", text: message, time: new Date().toISOString() };
     rooms[roomId].messages.push(newMessage);
     io.to(roomId).emit("receive-message", newMessage);
-  });
-
-  // 🔹 DISCONNECT
-  socket.on("disconnect", () => {
-    for (const roomId in rooms) {
-      rooms[roomId].users = rooms[roomId].users.filter(u => u.id !== socket.id);
-      delete rooms[roomId].cursors[socket.id];
-      io.to(roomId).emit("users-update", rooms[roomId].users);
-      if (rooms[roomId].users.length === 0) delete rooms[roomId];
-    }
   });
 
   // 🔹 VIDEO CALL SIGNALING
@@ -104,6 +95,16 @@ module.exports = (io, socket) => {
   });
 
   socket.on("returning-signal", ({ signal, to }) => {
-    io.to(to).emit("signal-returned", { signal });
+    io.to(to).emit("signal-returned", { signal, from: socket.id });
+  });
+
+  // 🔹 DISCONNECT
+  socket.on("disconnect", () => {
+    for (const roomId in rooms) {
+      rooms[roomId].users = rooms[roomId].users.filter(u => u.id !== socket.id);
+      delete rooms[roomId].cursors[socket.id];
+      io.to(roomId).emit("users-update", rooms[roomId].users);
+      if (rooms[roomId].users.length === 0) delete rooms[roomId];
+    }
   });
 };

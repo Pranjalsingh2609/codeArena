@@ -1,20 +1,30 @@
 import React, { useCallback, useRef, useEffect, useState } from "react";
 import Editor from "@monaco-editor/react";
 import { socket } from "../socket";
+import * as monaco from "monaco-editor";
 
 const CodeEditor = ({ roomId, username, language = "javascript" }) => {
   const [code, setCode] = useState("");
   const editorRef = useRef(null);
   const isRemoteUpdate = useRef(false);
   const decorationsRef = useRef({});
+  const debounceTimer = useRef(null);
 
+  // Debounced code emit
   const handleChange = useCallback((value) => {
     if (!editorRef.current || value === undefined) return;
-    if (isRemoteUpdate.current) { isRemoteUpdate.current = false; return; }
+    if (isRemoteUpdate.current) {
+      isRemoteUpdate.current = false;
+      return;
+    }
 
     setCode(value);
-    const cursor = editorRef.current.getPosition();
-    socket.emit("code-change", { roomId, code: value, cursor });
+
+    if (debounceTimer.current) clearTimeout(debounceTimer.current);
+    debounceTimer.current = setTimeout(() => {
+      const cursor = editorRef.current.getPosition();
+      socket.emit("code-change", { roomId, code: value, cursor });
+    }, 50); // 50ms debounce
   }, [roomId]);
 
   useEffect(() => {
@@ -30,7 +40,10 @@ const CodeEditor = ({ roomId, username, language = "javascript" }) => {
         if (!cursor) continue;
         decorationsRef.current[id] = editorRef.current.deltaDecorations(
           decorationsRef.current[id] || [],
-          [{ range: new editorRef.current.constructor.Range(cursor.lineNumber, cursor.column, cursor.lineNumber, cursor.column), options: { className: "remote-cursor" } }]
+          [{
+            range: new monaco.Range(cursor.lineNumber, cursor.column, cursor.lineNumber, cursor.column),
+            options: { className: "remote-cursor" }
+          }]
         );
       }
     };
@@ -38,16 +51,21 @@ const CodeEditor = ({ roomId, username, language = "javascript" }) => {
     const handleUpdate = ({ code: newCode, cursorId, cursor }) => {
       if (!editorRef.current) return;
       const localCursor = editorRef.current.getPosition();
+
       if (newCode !== editorRef.current.getValue()) {
         isRemoteUpdate.current = true;
         editorRef.current.setValue(newCode);
         setCode(newCode);
         editorRef.current.setPosition(localCursor);
       }
+
       if (cursorId && cursor) {
         decorationsRef.current[cursorId] = editorRef.current.deltaDecorations(
           decorationsRef.current[cursorId] || [],
-          [{ range: new editorRef.current.constructor.Range(cursor.lineNumber, cursor.column, cursor.lineNumber, cursor.column), options: { className: "remote-cursor" } }]
+          [{
+            range: new monaco.Range(cursor.lineNumber, cursor.column, cursor.lineNumber, cursor.column),
+            options: { className: "remote-cursor" }
+          }]
         );
       }
     };
