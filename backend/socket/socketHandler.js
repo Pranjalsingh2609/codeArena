@@ -6,26 +6,19 @@ const debounceTimers = {};
 const aiCache = new Map();
 
 module.exports = (io, socket) => {
-  // 🟢 JOIN ROOM
+
+  // 🔹 JOIN ROOM
   socket.on("join-room", ({ roomId, username }) => {
     socket.join(roomId);
 
     if (!rooms[roomId]) {
-      rooms[roomId] = {
-        code: "",
-        language: "javascript",
-        users: [],
-        cursors: {}, // track each user's cursor
-        messages: [],
-      };
+      rooms[roomId] = { code: "", language: "javascript", users: [], cursors: {}, messages: [] };
     }
 
-    // add user if new
-    if (!rooms[roomId].users.find((u) => u.id === socket.id)) {
+    if (!rooms[roomId].users.find(u => u.id === socket.id)) {
       rooms[roomId].users.push({ id: socket.id, name: username });
     }
 
-    // 🔹 Send current room data to NEW USER
     socket.emit("init", {
       code: rooms[roomId].code,
       language: rooms[roomId].language,
@@ -34,28 +27,22 @@ module.exports = (io, socket) => {
       messages: rooms[roomId].messages,
     });
 
-    // 🔹 Notify OTHERS that someone joined
     socket.to(roomId).emit("user-joined", { id: socket.id, name: username });
-
-    // 🔹 Broadcast updated users list
     io.to(roomId).emit("users-update", rooms[roomId].users);
   });
 
-  // 🖊️ CODE CHANGE (real-time)
+  // 🔹 CODE CHANGE
   socket.on("code-change", ({ roomId, code, cursor }) => {
     if (!rooms[roomId]) return;
 
     rooms[roomId].code = code;
     rooms[roomId].cursors[socket.id] = cursor;
 
-    // 🔹 Broadcast to everyone INCLUDING sender
     io.to(roomId).emit("code-update", { code, cursorId: socket.id, cursor });
 
-    // 🧠 Static Analysis
     const staticIssues = runStaticAnalysis(code, rooms[roomId].language);
     io.to(roomId).emit("ai-suggestions", staticIssues);
 
-    // 🚀 AI analysis (debounced)
     if (debounceTimers[roomId]) clearTimeout(debounceTimers[roomId]);
     debounceTimers[roomId] = setTimeout(async () => {
       try {
@@ -64,7 +51,6 @@ module.exports = (io, socket) => {
           io.to(roomId).emit("ai-suggestions", aiCache.get(cacheKey));
           return;
         }
-
         const aiIssues = await analyzeCodeWithAI(code, rooms[roomId].language);
         aiCache.set(cacheKey, aiIssues);
         io.to(roomId).emit("ai-suggestions", aiIssues);
@@ -74,50 +60,50 @@ module.exports = (io, socket) => {
     }, 800);
   });
 
-  // 🖱️ CURSOR MOVE
+  // 🔹 CURSOR CHANGE
   socket.on("cursor-change", ({ roomId, cursor }) => {
     if (!rooms[roomId]) return;
-
     rooms[roomId].cursors[socket.id] = cursor;
-
-    socket.to(roomId).emit("cursor-update", {
-      cursorId: socket.id,
-      cursor,
-    });
+    socket.to(roomId).emit("cursor-update", { cursorId: socket.id, cursor });
   });
 
-  // 🌐 LANGUAGE CHANGE
+  // 🔹 LANGUAGE CHANGE
   socket.on("language-change", ({ roomId, language }) => {
     if (!rooms[roomId]) return;
     rooms[roomId].language = language;
     socket.to(roomId).emit("language-update", language);
   });
 
-  // 💬 CHAT MESSAGE
+  // 🔹 CHAT MESSAGE
   socket.on("send-message", ({ roomId, message }) => {
     if (!rooms[roomId]) return;
-
-    const newMessage = {
-      user: socket.user?.email || "Anonymous",
-      text: message,
-      time: new Date().toISOString(),
-    };
-
+    const newMessage = { user: socket.user?.email || "Anonymous", text: message, time: new Date().toISOString() };
     rooms[roomId].messages.push(newMessage);
     io.to(roomId).emit("receive-message", newMessage);
   });
 
-  // 🚪 DISCONNECT
+  // 🔹 DISCONNECT
   socket.on("disconnect", () => {
     for (const roomId in rooms) {
-      rooms[roomId].users = rooms[roomId].users.filter(
-        (u) => u.id !== socket.id,
-      );
+      rooms[roomId].users = rooms[roomId].users.filter(u => u.id !== socket.id);
       delete rooms[roomId].cursors[socket.id];
-
       io.to(roomId).emit("users-update", rooms[roomId].users);
-
       if (rooms[roomId].users.length === 0) delete rooms[roomId];
     }
+  });
+
+  // 🔹 VIDEO CALL SIGNALING
+  socket.on("join-video", (roomId) => {
+    socket.join(roomId);
+    const otherUsers = Array.from(io.sockets.adapter.rooms.get(roomId) || []).filter(id => id !== socket.id);
+    socket.emit("all-users", otherUsers);
+  });
+
+  socket.on("sending-signal", ({ userToSignal, signal }) => {
+    io.to(userToSignal).emit("receiving-signal", { signal, from: socket.id });
+  });
+
+  socket.on("returning-signal", ({ signal, to }) => {
+    io.to(to).emit("signal-returned", { signal });
   });
 };
