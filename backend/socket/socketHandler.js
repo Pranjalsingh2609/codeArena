@@ -1,7 +1,7 @@
 const { runStaticAnalysis } = require("../utils/staticAnalysis");
 const { analyzeCodeWithAI } = require("../utils/aiAnalysis");
 
-const rooms = {}; 
+const rooms = {};
 const debounceTimers = {};
 const aiCache = new Map();
 
@@ -21,7 +21,7 @@ module.exports = (io, socket) => {
     }
 
     // add user if new
-    if (!rooms[roomId].users.find(u => u.id === socket.id)) {
+    if (!rooms[roomId].users.find((u) => u.id === socket.id)) {
       rooms[roomId].users.push({ id: socket.id, name: username });
     }
 
@@ -46,20 +46,16 @@ module.exports = (io, socket) => {
     if (!rooms[roomId]) return;
 
     rooms[roomId].code = code;
-    rooms[roomId].cursors[socket.id] = cursor; // save cursor
+    rooms[roomId].cursors[socket.id] = cursor;
 
-    // Broadcast updated code & cursor to all users except sender
-    socket.to(roomId).emit("code-update", {
-      code,
-      cursorId: socket.id,
-      cursor,
-    });
+    // 🔹 Broadcast to everyone INCLUDING sender
+    io.to(roomId).emit("code-update", { code, cursorId: socket.id, cursor });
 
-    // 🧠 STATIC ANALYSIS
+    // 🧠 Static Analysis
     const staticIssues = runStaticAnalysis(code, rooms[roomId].language);
     io.to(roomId).emit("ai-suggestions", staticIssues);
 
-    // 🚀 AI ANALYSIS (debounced)
+    // 🚀 AI analysis (debounced)
     if (debounceTimers[roomId]) clearTimeout(debounceTimers[roomId]);
     debounceTimers[roomId] = setTimeout(async () => {
       try {
@@ -75,7 +71,7 @@ module.exports = (io, socket) => {
       } catch (err) {
         console.error("AI Error:", err);
       }
-    }, 800); // debounced 0.8s
+    }, 800);
   });
 
   // 🖱️ CURSOR MOVE
@@ -114,7 +110,9 @@ module.exports = (io, socket) => {
   // 🚪 DISCONNECT
   socket.on("disconnect", () => {
     for (const roomId in rooms) {
-      rooms[roomId].users = rooms[roomId].users.filter(u => u.id !== socket.id);
+      rooms[roomId].users = rooms[roomId].users.filter(
+        (u) => u.id !== socket.id,
+      );
       delete rooms[roomId].cursors[socket.id];
 
       io.to(roomId).emit("users-update", rooms[roomId].users);

@@ -1,73 +1,120 @@
-import React, { useCallback, useRef, useEffect } from "react";
+import React, { useCallback, useRef, useEffect, useState } from "react";
 import Editor from "@monaco-editor/react";
 import { socket } from "../socket";
 
-const CodeEditor = ({ code, setCode, roomId, language = "javascript" }) => {
+const CodeEditor = ({ roomId, language = "javascript" }) => {
+  const [code, setCode] = useState("");          // Local state
   const editorRef = useRef(null);
   const isRemoteUpdate = useRef(false);
+  const decorationsRef = useRef({});             // Track remote cursors
 
   // 🔹 Local typing
-  const handleChange = useCallback((value) => {
-    if (!editorRef.current || value === undefined) return;
+  const handleChange = useCallback(
+    (value) => {
+      if (!editorRef.current || value === undefined) return;
 
-    if (isRemoteUpdate.current) {
-      isRemoteUpdate.current = false;
-      return;
-    }
+      // Ignore remote updates
+      if (isRemoteUpdate.current) {
+        isRemoteUpdate.current = false;
+        return;
+      }
 
-    const cursor = editorRef.current.getPosition();
-    setCode(value);
+      setCode(value);
 
-    // Emit code + cursor
-    socket.emit("code-change", { roomId, code: value, cursor });
-  }, [roomId, setCode]);
+      const cursor = editorRef.current.getPosition();
+      socket.emit("code-change", { roomId, code: value, cursor });
+    },
+    [roomId]
+  );
+
+  // 🔹 Initial code load on join
+  useEffect(() => {
+    const handleInit = ({ code: initCode, cursors }) => {
+      if (!editorRef.current) return;
+
+      isRemoteUpdate.current = true;
+      editorRef.current.setValue(initCode);
+      setCode(initCode);
+
+      // Render existing cursors
+      for (const [id, cursor] of Object.entries(cursors || {})) {
+        if (!cursor) continue;
+        decorationsRef.current[id] = editorRef.current.deltaDecorations(
+          decorationsRef.current[id] || [],
+          [
+            {
+              range: new editorRef.current.constructor.Range(
+                cursor.lineNumber,
+                cursor.column,
+                cursor.lineNumber,
+                cursor.column
+              ),
+              options: { className: "remote-cursor" },
+            },
+          ]
+        );
+      }
+    };
+
+    socket.on("init", handleInit);
+    return () => socket.off("init", handleInit);
+  }, []);
 
   // 🔹 Listen for remote code updates
   useEffect(() => {
     const handleIncomingCode = ({ code: newCode, cursorId, cursor }) => {
-      const editor = editorRef.current;
-      if (!editor) return;
+      if (!editorRef.current) return;
 
-      const currentCode = editor.getValue();
+      const currentCode = editorRef.current.getValue();
       if (newCode === currentCode) return;
 
-      const localCursor = editor.getPosition();
+      const localCursor = editorRef.current.getPosition();
       isRemoteUpdate.current = true;
-      editor.setValue(newCode);
-
+      editorRef.current.setValue(newCode);
       setCode(newCode);
 
-      // Restore local cursor if this update is from another user
-      if (localCursor) editor.setPosition(localCursor);
+      // Restore local cursor
+      if (localCursor) editorRef.current.setPosition(localCursor);
 
-      // Optionally: show remote cursors (requires decorations)
+      // Show remote cursor
       if (cursorId && cursor) {
-        editor.deltaDecorations(
-          [],
-          [{
-            range: new editorRef.current.constructor.Range(
-              cursor.lineNumber,
-              cursor.column,
-              cursor.lineNumber,
-              cursor.column
-            ),
-            options: { className: "remote-cursor" }
-          }]
+        decorationsRef.current[cursorId] = editorRef.current.deltaDecorations(
+          decorationsRef.current[cursorId] || [],
+          [
+            {
+              range: new editorRef.current.constructor.Range(
+                cursor.lineNumber,
+                cursor.column,
+                cursor.lineNumber,
+                cursor.column
+              ),
+              options: { className: "remote-cursor" },
+            },
+          ]
         );
       }
     };
 
     socket.on("code-update", handleIncomingCode);
     return () => socket.off("code-update", handleIncomingCode);
-  }, [setCode]);
+  }, []);
 
   // 🔹 Capture Monaco instance
   const handleEditorDidMount = (editor) => {
     editorRef.current = editor;
-    setTimeout(() => { editor.layout(); editor.focus(); }, 100);
+    setTimeout(() => {
+      editor.layout();
+      editor.focus();
+    }, 100);
+
+    // 🔹 Track cursor movements separately
+    editor.onDidChangeCursorPosition((e) => {
+      const cursor = e.position;
+      socket.emit("cursor-change", { roomId, cursor });
+    });
   };
 
-  // 🔹 Resize
+  // 🔹 Resize handling
   useEffect(() => {
     const handleResize = () => editorRef.current?.layout();
     window.addEventListener("resize", handleResize);
