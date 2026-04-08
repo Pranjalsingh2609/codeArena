@@ -21,12 +21,12 @@ const CodeEditor = ({ code, setCode, roomId, language = "javascript" }) => {
       setCode(value);
 
       // ⚡ instant emit (no debounce)
-      socket.emit("code-update", {
+      socket.emit("code-change", {
         roomId,
         code: value,
       });
     },
-    [roomId, setCode]
+    [roomId, setCode],
   );
 
   // 📡 Listen for remote updates (REAL-TIME)
@@ -36,18 +36,18 @@ const CodeEditor = ({ code, setCode, roomId, language = "javascript" }) => {
       if (!editor) return;
 
       const currentCode = editor.getValue();
-
-      // prevent unnecessary updates
       if (newCode === currentCode) return;
 
       // save cursor position
       const cursorPosition = editor.getPosition();
 
-      // mark as remote update
+      // mark as remote change
       isRemoteUpdate.current = true;
 
-      // 🔥 direct update (no React delay)
+      // 🔥 direct change (no React delay)
       editor.setValue(newCode);
+
+      setCode(newCode);
 
       // restore cursor
       if (cursorPosition) {
@@ -60,7 +60,7 @@ const CodeEditor = ({ code, setCode, roomId, language = "javascript" }) => {
     return () => {
       socket.off("code-update", handleIncomingCode);
     };
-  }, []);
+  }, [setCode]);
 
   // 📌 Capture Monaco instance
   const handleEditorDidMount = (editor) => {
@@ -91,7 +91,7 @@ const CodeEditor = ({ code, setCode, roomId, language = "javascript" }) => {
         height="100%"
         width="100%"
         language={language}
-        value={code || ""}
+        defaultValue={code || ""}
         theme="vs-dark"
         onChange={handleChange}
         onMount={handleEditorDidMount}
