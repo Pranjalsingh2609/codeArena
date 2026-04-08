@@ -41,10 +41,10 @@ const InterviewRoom = () => {
 
     // INIT
     socket.on("init", (data) => {
-      setCode(data.code);
-      setLanguage(data.language);
+      setCode(data.code || "");
+      setLanguage(data.language || "javascript");
       setUsers(data.users || []);
-      setMessages(data.messages);
+      setMessages(data.messages || []);
     });
 
     // LANGUAGE UPDATE
@@ -66,7 +66,9 @@ const InterviewRoom = () => {
     );
 
     // USERS UPDATE
-    socket.on("users-update", setUsers);
+    socket.on("users-update", (data) => {
+      setUsers(data || []);
+    });
 
     // USER JOINED
     socket.on("user-joined", (user) => {
@@ -117,7 +119,7 @@ const InterviewRoom = () => {
           <div
             style={{ fontSize: "22px", fontWeight: "700", color: "#38bdf8" }}
           >
-            🚀 CodeMeet
+            🚀 CoderMeet
           </div>
           <div style={{ fontSize: "12px", color: "#94a3b8" }}>
             Room: {roomId}
@@ -151,7 +153,7 @@ const InterviewRoom = () => {
           <div style={{ marginBottom: "10px" }}>
             <h4 style={{ color: "#38bdf8" }}>👥 Participants</h4>
 
-            {users.length === 0 ? (
+           {(users || []).length === 0 ? (
               <div style={{ fontSize: "12px", color: "#64748b" }}>
                 No users yet
               </div>
@@ -185,7 +187,7 @@ const InterviewRoom = () => {
                 marginBottom: "8px",
               }}
             >
-              {messages.map((msg, i) => (
+              {(messages || []).map((msg, i) => (
                 <div key={i}>
                   <strong>{msg.user}</strong>: {msg.text}
                 </div>
