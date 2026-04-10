@@ -1,7 +1,7 @@
 import React, { useRef, useEffect, useState } from "react";
 import Editor from "@monaco-editor/react";
 import { socket } from "../socket";
-import * as monaco from "monaco-editor";
+import { Range } from "monaco-editor";
 
 const CodeEditor = ({ roomId, username, language = "javascript" }) => {
   const [code, setCode] = useState("");
@@ -9,29 +9,24 @@ const CodeEditor = ({ roomId, username, language = "javascript" }) => {
   const isRemoteUpdate = useRef(false);
   const decorationsRef = useRef({});
 
+  const handleChange = (value = "") => {
+    if (isRemoteUpdate.current) {
+      isRemoteUpdate.current = false;
+      return;
+    }
 
-  // Debounced code emit
-const handleChange = (value) => {
-  setCode(value);
-  socket.emit("code-change", { roomId, code: value });
-};
+    setCode(value);
 
-useEffect(() => {
-  socket.on("init", ({ code }) => setCode(code));
+    const cursor = editorRef.current?.getPosition();
 
-  socket.on("code-update", ({ code }) => {
-    setCode(code);
-  });
-
-  return () => {
-    socket.off("init");
-    socket.off("code-update");
+    socket.emit("code-change", {
+      roomId,
+      code: value,
+      cursor,
+    });
   };
-}, []);
 
   useEffect(() => {
-    
-
     const handleInit = ({ code: initCode, cursors }) => {
       if (!editorRef.current) return;
       isRemoteUpdate.current = true;
@@ -42,10 +37,17 @@ useEffect(() => {
         if (!cursor) continue;
         decorationsRef.current[id] = editorRef.current.deltaDecorations(
           decorationsRef.current[id] || [],
-          [{
-            range: new monaco.Range(cursor.lineNumber, cursor.column, cursor.lineNumber, cursor.column),
-            options: { className: "remote-cursor" }
-          }]
+          [
+            {
+              range: new Range(
+                cursor.lineNumber,
+                cursor.column,
+                cursor.lineNumber,
+                cursor.column,
+              ),
+              options: { className: "remote-cursor" },
+            },
+          ],
         );
       }
     };
@@ -61,14 +63,30 @@ useEffect(() => {
         editorRef.current.setPosition(localCursor);
       }
 
-      if (cursorId && cursor) {
-        decorationsRef.current[cursorId] = editorRef.current.deltaDecorations(
-          decorationsRef.current[cursorId] || [],
-          [{
-            range: new monaco.Range(cursor.lineNumber, cursor.column, cursor.lineNumber, cursor.column),
-            options: { className: "remote-cursor" }
-          }]
+      if (
+        cursorId &&
+        cursor &&
+        typeof cursor.lineNumber === "number" &&
+        typeof cursor.column === "number"
+      ) {
+        const oldDecorations = decorationsRef.current[cursorId] || [];
+
+        const newDecorations = editorRef.current.deltaDecorations(
+          oldDecorations,
+          [
+            {
+              range: new Range(
+                cursor.lineNumber,
+                cursor.column,
+                cursor.lineNumber,
+                cursor.column,
+              ),
+              options: { className: "remote-cursor" },
+            },
+          ],
         );
+
+        decorationsRef.current[cursorId] = newDecorations;
       }
     };
 
@@ -82,9 +100,24 @@ useEffect(() => {
   }, [roomId, username]);
 
   const handleEditorDidMount = (editor) => {
+    let lastEmit = 0;
     editorRef.current = editor;
-    setTimeout(() => { editor.layout(); editor.focus(); }, 100);
-    editor.onDidChangeCursorPosition(e => socket.emit("cursor-change", { roomId, cursor: e.position }));
+    setTimeout(() => {
+      editor.layout();
+      editor.focus();
+    }, 100);
+
+    editor.onDidChangeCursorPosition((e) => {
+      const now = Date.now();
+
+      if (now - lastEmit > 50) {
+        lastEmit = now;
+        socket.emit("cursor-change", {
+          roomId,
+          cursor: e.position,
+        });
+      }
+    });
   };
 
   return (

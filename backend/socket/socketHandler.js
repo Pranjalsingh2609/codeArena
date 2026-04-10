@@ -37,7 +37,7 @@ module.exports = (io, socket) => {
 
     rooms[roomId].code = code;
 
-    socket.to(roomId).emit("code-update", { code });
+    socket.to(roomId).emit("code-update", { code, cursor, cursorId: socket.id, });
 
     const staticIssues = runStaticAnalysis(code);
     io.to(roomId).emit("ai-suggestions", staticIssues);
