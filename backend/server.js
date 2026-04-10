@@ -5,16 +5,16 @@ const cors = require("cors");
 require("dotenv").config();
 
 const socketHandler = require("./socket/socketHandler");
+const runCode = require("./services/dockerRunner"); // ✅ Docker runner
 
 const app = express();
 const server = http.createServer(app);
 
 /* -------------------- MIDDLEWARE -------------------- */
 
-// CORS (restrict in production)
 app.use(
   cors({
-    origin: "*", // 🔥 Replace with your frontend URL in production
+    origin: "*", // 🔥 change to frontend URL in production
     methods: ["GET", "POST"],
   })
 );
@@ -31,47 +31,22 @@ app.get("/", (req, res) => {
 /* -------------------- RUN CODE API -------------------- */
 
 app.post("/api/run", async (req, res) => {
-  const { code, language, input } = req.body;
+  const { code, language } = req.body;
 
-  if (!code) {
-    return res.status(400).json({ output: "⚠️ No code provided" });
+  if (!code || !language) {
+    return res.status(400).json({
+      output: "⚠️ Code and language are required",
+    });
   }
 
   try {
-    let output = "";
-
-    // ⚠️ DEMO EXECUTION (ONLY JS)
-    if (language === "javascript") {
-      try {
-        // Capture console.log output
-        const logs = [];
-        const originalLog = console.log;
-
-        console.log = (...args) => {
-          logs.push(args.join(" "));
-        };
-
-        // Run code
-        const result = eval(code); // ⚠️ Not safe for production
-
-        console.log = originalLog;
-
-        output =
-          logs.length > 0
-            ? logs.join("\n")
-            : result !== undefined
-            ? result.toString()
-            : "✅ Code executed successfully";
-      } catch (err) {
-        output = "❌ " + err.message;
-      }
-    } else {
-      output = "⚠️ Currently only JavaScript is supported";
-    }
+    // 🚀 Run inside Docker sandbox
+    const output = await runCode(code, language);
 
     res.json({ output });
   } catch (error) {
     console.error("Run API Error:", error);
+
     res.status(500).json({
       output: "❌ Server error while executing code",
     });
@@ -82,7 +57,7 @@ app.post("/api/run", async (req, res) => {
 
 const io = new Server(server, {
   cors: {
-    origin: "*", // 🔥 Replace with frontend URL later
+    origin: "*", // 🔥 replace in production
     methods: ["GET", "POST"],
   },
 });
