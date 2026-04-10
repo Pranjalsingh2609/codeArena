@@ -1,5 +1,5 @@
 const { runStaticAnalysis } = require("../utils/staticAnalysis");
-const { analyzeCodeWithAI } = require("../utils/aiAnalysis");
+// const { analyzeCodeWithAI } = require("../utils/aiAnalysis"); // optional
 
 const rooms = {};
 const aiCache = new Map();
@@ -15,14 +15,24 @@ module.exports = (io, socket) => {
         code: "",
         language: "javascript",
         users: [],
+        cursors: {}, // ✅ track cursors
       };
     }
 
-    rooms[roomId].users.push({ id: socket.id, name: username });
+    // ✅ prevent duplicate users
+    const exists = rooms[roomId].users.find(u => u.id === socket.id);
+    if (!exists) {
+      rooms[roomId].users.push({ id: socket.id, name: username });
+    }
 
-    socket.emit("init", rooms[roomId]);
+    // ✅ send full state
+    socket.emit("init", {
+      code: rooms[roomId].code,
+      language: rooms[roomId].language,
+      users: rooms[roomId].users,
+      cursors: rooms[roomId].cursors,
+    });
 
-    // 🔥 IMPORTANT
     socket.to(roomId).emit("user-joined", {
       id: socket.id,
       name: username,
@@ -32,33 +42,62 @@ module.exports = (io, socket) => {
   });
 
   // ================= CODE =================
-  socket.on("code-change", ({ roomId, code }) => {
+  socket.on("code-change", ({ roomId, code, cursor }) => {
     if (!rooms[roomId]) return;
 
     rooms[roomId].code = code;
 
-    socket.to(roomId).emit("code-update", { code, cursor, cursorId: socket.id, });
+    // ✅ save cursor
+    if (cursor) {
+      rooms[roomId].cursors[socket.id] = cursor;
+    }
 
-    const staticIssues = runStaticAnalysis(code);
-    io.to(roomId).emit("ai-suggestions", staticIssues);
+    // ✅ broadcast with cursor + id
+    socket.to(roomId).emit("code-update", {
+      code,
+      cursor,
+      cursorId: socket.id,
+    });
+
+    // ✅ static analysis (optional cache)
+    const cacheKey = code;
+    if (aiCache.has(cacheKey)) {
+      io.to(roomId).emit("ai-suggestions", aiCache.get(cacheKey));
+    } else {
+      const issues = runStaticAnalysis(code);
+      aiCache.set(cacheKey, issues);
+      io.to(roomId).emit("ai-suggestions", issues);
+    }
+  });
+
+  // ================= CURSOR =================
+  socket.on("cursor-change", ({ roomId, cursor }) => {
+    if (!rooms[roomId] || !cursor) return;
+
+    rooms[roomId].cursors[socket.id] = cursor;
+
+    socket.to(roomId).emit("cursor-update", {
+      cursorId: socket.id,
+      cursor,
+    });
   });
 
   // ================= LANGUAGE =================
   socket.on("language-change", ({ roomId, language }) => {
     if (!rooms[roomId]) return;
+
     rooms[roomId].language = language;
+
     socket.to(roomId).emit("language-update", language);
   });
 
   // ================= VIDEO =================
   socket.on("join-video", (roomId) => {
     const users = Array.from(io.sockets.adapter.rooms.get(roomId) || []);
-
     const otherUsers = users.filter(id => id !== socket.id);
 
     socket.emit("all-users", otherUsers);
 
-    // 🔥 FIX (MOST IMPORTANT)
     socket.to(roomId).emit("user-joined-video", socket.id);
   });
 
@@ -79,13 +118,19 @@ module.exports = (io, socket) => {
   // ================= DISCONNECT =================
   socket.on("disconnect", () => {
     for (const roomId in rooms) {
-      rooms[roomId].users =
-        rooms[roomId].users.filter(u => u.id !== socket.id);
+      const room = rooms[roomId];
+
+      // ✅ remove user
+      room.users = room.users.filter(u => u.id !== socket.id);
+
+      // ✅ remove cursor
+      delete room.cursors[socket.id];
 
       socket.to(roomId).emit("user-left", socket.id);
-      io.to(roomId).emit("users-update", rooms[roomId].users);
+      io.to(roomId).emit("users-update", room.users);
 
-      if (rooms[roomId].users.length === 0) {
+      // 🧹 cleanup empty room
+      if (room.users.length === 0) {
         delete rooms[roomId];
       }
     }
