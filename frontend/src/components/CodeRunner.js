@@ -1,52 +1,70 @@
 import React, { useState } from "react";
 
-const CodeRunner = ({ code, language }) => {
+const CodeRunner = ({ code, language, setOutput }) => {
   const [loading, setLoading] = useState(false);
   const [input, setInput] = useState("");
   const [showInput, setShowInput] = useState(false);
-  const [output, setOutput] = useState("");
   const [analysis, setAnalysis] = useState("");
 
+  const BASE_URL = process.env.REACT_APP_BACKEND_URL;
+
   const runCode = async () => {
+    if (!code?.trim()) {
+      setOutput("⚠️ No code to run");
+      return;
+    }
+
     setLoading(true);
     setOutput("⏳ Running...\n");
+    setAnalysis("");
 
     try {
-      const res = await fetch("http://localhost:5000/api/run", {
+      const res = await fetch(`${BASE_URL}/api/run`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ code, language, input }),
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          code,
+          language,
+          input,
+        }),
       });
+
+      if (!res.ok) {
+        throw new Error("Server error");
+      }
 
       const data = await res.json();
 
+      // Handle no output case
       if (!input && (!data.output || data.output.trim() === "")) {
         setShowInput(true);
-        setOutput("⚠️ Program may require input.\nEnter input below and run again.");
+        setOutput("⚠️ Input required.\nPlease provide input and run again.");
       } else {
-        setOutput(data.output || "No output");
+        setOutput(data.output || "No output returned.");
       }
 
-      // Simple AI Analysis placeholder
-      setAnalysis("No issues detected.");
-    } catch (err) {
-      console.error(err);
-      setOutput("❌ Error running code");
-      setAnalysis("");
-    }
+      // Simple AI feedback (can upgrade later)
+      setAnalysis("✅ Code executed successfully.");
 
-    setLoading(false);
+    } catch (error) {
+      console.error("Run Error:", error);
+      setOutput("❌ Failed to execute code. Check backend or network.");
+      setAnalysis("");
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
-    <div className="code-runner-container" style={styles.container}>
-      {/* Buttons */}
-      <div style={styles.buttonContainer}>
+    <div style={styles.container}>
+      
+      {/* Controls */}
+      <div style={styles.header}>
         <button
-          onClick={() => setShowInput(prev => !prev)}
-          style={styles.toggleButton}
-          onMouseOver={(e) => { e.target.style.background = "#38bdf8"; e.target.style.color = "#0f172a"; }}
-          onMouseOut={(e) => { e.target.style.background = "#1e293b"; e.target.style.color = "#38bdf8"; }}
+          onClick={() => setShowInput((prev) => !prev)}
+          style={styles.toggleBtn}
         >
           {showInput ? "Hide Input" : "Add Input"}
         </button>
@@ -54,33 +72,29 @@ const CodeRunner = ({ code, language }) => {
         <button
           onClick={runCode}
           disabled={loading}
-          style={{ ...styles.runButton, background: loading ? "#334155" : "#22c55e", cursor: loading ? "not-allowed" : "pointer" }}
+          style={{
+            ...styles.runBtn,
+            background: loading ? "#334155" : "#22c55e",
+          }}
         >
-          {loading ? "Running..." : "▶ Run"}
+          {loading ? "Running..." : "▶ Run Code"}
         </button>
       </div>
 
-      {/* Input Area */}
+      {/* Input Box */}
       {showInput && (
         <textarea
           value={input}
           onChange={(e) => setInput(e.target.value)}
-          placeholder="Enter input here..."
+          placeholder="Enter input (stdin)..."
           style={styles.textarea}
         />
       )}
 
-      {/* Output Console */}
-      {output && (
-        <div style={{ ...styles.console, minHeight: output ? "120px" : "0" }}>
-          {output}
-        </div>
-      )}
-
       {/* AI Analysis */}
       {analysis && (
-        <div style={{ ...styles.console, minHeight: "0", borderTop: "1px solid #334155" }}>
-          <strong style={{ color: "#38bdf8" }}>AI Analysis:</strong>
+        <div style={styles.analysisBox}>
+          <strong>AI Analysis:</strong>
           <div>{analysis}</div>
         </div>
       )}
@@ -88,46 +102,44 @@ const CodeRunner = ({ code, language }) => {
   );
 };
 
-// Reusable styles
+/* Styles */
 const styles = {
   container: {
     width: "100%",
-    maxWidth: "800px",
-    margin: "0 auto",
-    background: "#0f172a",
+    background: "#020617",
     borderRadius: "10px",
-    padding: "20px",
-    fontFamily: "Fira Code, monospace",
+    padding: "12px",
     display: "flex",
     flexDirection: "column",
-    gap: "16px",
-    boxShadow: "0 8px 20px rgba(0,0,0,0.4)",
+    gap: "10px",
+    border: "1px solid #1e293b",
   },
-  buttonContainer: {
+
+  header: {
     display: "flex",
     justifyContent: "space-between",
     gap: "10px",
   },
-  toggleButton: {
+
+  toggleBtn: {
     background: "#1e293b",
     color: "#38bdf8",
     border: "1px solid #334155",
-    padding: "8px 16px",
+    padding: "6px 12px",
     borderRadius: "6px",
     cursor: "pointer",
-    fontWeight: "600",
-    transition: "all 0.3s",
+    fontSize: "13px",
   },
-  runButton: {
-    color: "#fff",
-    borderRadius: "6px",
+
+  runBtn: {
+    color: "#000",
     border: "none",
+    borderRadius: "6px",
+    padding: "6px 16px",
     fontWeight: "600",
-    fontSize: "14px",
-    padding: "8px 20px",
-    transition: "all 0.3s",
-    boxShadow: "0 4px 12px rgba(0,0,0,0.3)",
+    cursor: "pointer",
   },
+
   textarea: {
     width: "100%",
     minHeight: "80px",
@@ -135,25 +147,18 @@ const styles = {
     color: "#fff",
     border: "1px solid #334155",
     borderRadius: "6px",
-    padding: "12px",
-    fontSize: "14px",
-    outline: "none",
-    caretColor: "#22c55e",
+    padding: "10px",
+    fontSize: "13px",
     resize: "vertical",
-    boxShadow: "inset 0 2px 6px rgba(0,0,0,0.5)",
-    transition: "border 0.3s",
   },
-  console: {
-    width: "100%",
-    background: "#1e293b",
+
+  analysisBox: {
+    background: "#0f172a",
+    padding: "10px",
     borderRadius: "6px",
-    padding: "12px",
-    color: "#fff",
-    fontSize: "14px",
-    lineHeight: "1.5",
-    overflowY: "auto",
-    whiteSpace: "pre-wrap",
-    boxShadow: "inset 0 2px 6px rgba(0,0,0,0.5)",
+    fontSize: "13px",
+    color: "#e2e8f0",
+    border: "1px solid #1e293b",
   },
 };
 
