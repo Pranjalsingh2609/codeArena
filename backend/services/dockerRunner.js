@@ -14,39 +14,23 @@ const runCode = (code, language, input = "") => {
 
       let command = "";
 
-      // ---------------- JAVASCRIPT ----------------
       if (language === "javascript") {
         fs.writeFileSync(path.join(dir, "Main.js"), code, "utf8");
         fs.writeFileSync(path.join(dir, "input.txt"), input, "utf8");
-
         command = `${DOCKER_BIN} run --rm -v "${dir}:/app" -w /app node:18 sh -c "node Main.js < input.txt"`;
-      }
-
-      // ---------------- PYTHON ----------------
-      else if (language === "python") {
+      } else if (language === "python") {
         fs.writeFileSync(path.join(dir, "Main.py"), code, "utf8");
         fs.writeFileSync(path.join(dir, "input.txt"), input, "utf8");
-
         command = `${DOCKER_BIN} run --rm -v "${dir}:/app" -w /app python:3.10 sh -c "python Main.py < input.txt"`;
-      }
-
-      // ---------------- C++ ----------------
-      else if (language === "cpp") {
+      } else if (language === "cpp") {
         fs.writeFileSync(path.join(dir, "Main.cpp"), code, "utf8");
         fs.writeFileSync(path.join(dir, "input.txt"), input, "utf8");
-
         command = `${DOCKER_BIN} run --rm -v "${dir}:/app" -w /app gcc:latest sh -c "g++ Main.cpp -o main && ./main < input.txt"`;
-      }
-
-      // ---------------- JAVA ----------------
-      else if (language === "java") {
+      } else if (language === "java") {
         fs.writeFileSync(path.join(dir, "Main.java"), code, "utf8");
         fs.writeFileSync(path.join(dir, "input.txt"), input, "utf8");
-
         command = `${DOCKER_BIN} run --rm -v "${dir}:/app" -w /app openjdk:17 sh -c "javac Main.java && java Main < input.txt"`;
-      }
-
-      else {
+      } else {
         return resolve("❌ Unsupported language");
       }
 
