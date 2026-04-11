@@ -1,2 +1,1 @@
-// frontend/src/config.js
-export const API_URL = "https://codearena-az4r.onrender.com/api";
+export const API_URL = "http://16.176.142.165:5000/api";
