@@ -31,7 +31,7 @@ app.get("/", (req, res) => {
 /* -------------------- RUN CODE API -------------------- */
 
 app.post("/api/run", async (req, res) => {
-  const { code, language } = req.body;
+  const { code, language, input } = req.body;
 
   if (!code || !language) {
     return res.status(400).json({
@@ -40,15 +40,11 @@ app.post("/api/run", async (req, res) => {
   }
 
   try {
-    // 🚀 Run inside Docker sandbox
-    const output = await runCode(code, language);
-
+    const output = await runCode(code, language, input || "");
     res.json({ output });
   } catch (error) {
-    console.error("Run API Error:", error);
-
     res.status(500).json({
-      output: "❌ Server error while executing code",
+      output: `❌ Server error: ${error.message}`,
     });
   }
 });
