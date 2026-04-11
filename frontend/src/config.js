@@ -1,1 +1,1 @@
-export const API_URL = "http://16.176.142.165:5000/api";
+export const API_URL = "https://codearena123.duckdns.org/api";
