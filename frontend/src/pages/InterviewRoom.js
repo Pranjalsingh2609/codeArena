@@ -94,27 +94,9 @@ const InterviewRoom = () => {
   };
 
   return (
-    <div
-      style={{
-        height: "100vh",
-        display: "flex",
-        flexDirection: "column",
-        background: "#0b1120",
-        color: "#e2e8f0",
-      }}
-    >
+    <div style={styles.app}>
       {/* Top Bar */}
-      <div
-        style={{
-          height: "60px",
-          background: "rgba(15,23,42,0.9)",
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          padding: "0 20px",
-          borderBottom: "1px solid #2b3b54",
-        }}
-      >
+      <div style={styles.topBar}>
         <div>
           <div
             style={{ fontSize: "22px", fontWeight: "700", color: "#38bdf8" }}
@@ -137,16 +119,7 @@ const InterviewRoom = () => {
 
       <div style={{ flex: 1, display: "flex", overflow: "hidden" }}>
         {/* Sidebar */}
-        <div
-          style={{
-            width: "320px",
-            background: "#020617",
-            borderRight: "1px solid #1e293b",
-            display: "flex",
-            flexDirection: "column",
-            padding: "12px",
-          }}
-        >
+        <div style={styles.sidebar}>
           <VideoCall roomId={roomId} username={username} users={users} />
 
           {/* Participants */}
@@ -167,14 +140,7 @@ const InterviewRoom = () => {
           </div>
 
           {/* Chat */}
-          <div
-            style={{
-              flex: 1,
-              display: "flex",
-              flexDirection: "column",
-              marginTop: "12px",
-            }}
-          >
+          <div style={styles.main}>
             <div
               ref={chatRef}
               style={{
@@ -274,6 +240,300 @@ const InterviewRoom = () => {
       </div>
     </div>
   );
+};
+
+
+const styles = {
+  app: {
+    height: "100vh",
+    display: "flex",
+    flexDirection: "column",
+    background:
+      "radial-gradient(circle at top left, #172554 0%, #0f172a 35%, #020617 100%)",
+    color: "#e2e8f0",
+    fontFamily:
+      "'Inter', 'Segoe UI', 'Poppins', 'Helvetica Neue', sans-serif",
+  },
+
+  topBar: {
+    height: "76px",
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+    padding: "0 22px",
+    borderBottom: "1px solid rgba(148,163,184,0.14)",
+    background: "rgba(2, 6, 23, 0.72)",
+    backdropFilter: "blur(12px)",
+    boxShadow: "0 10px 30px rgba(0,0,0,0.25)",
+    zIndex: 10,
+  },
+
+  brandWrap: {
+    display: "flex",
+    flexDirection: "column",
+    gap: "3px",
+  },
+
+  brand: {
+    fontSize: "28px",
+    fontWeight: 800,
+    letterSpacing: "0.4px",
+    background: "linear-gradient(90deg, #60a5fa, #22d3ee, #a78bfa)",
+    WebkitBackgroundClip: "text",
+    WebkitTextFillColor: "transparent",
+  },
+
+  roomText: {
+    fontSize: "12px",
+    color: "#94a3b8",
+    whiteSpace: "nowrap",
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+    maxWidth: "520px",
+  },
+
+  topBarRight: {
+    display: "flex",
+    alignItems: "center",
+    gap: "14px",
+  },
+
+  topControl: {
+    background: "rgba(15, 23, 42, 0.82)",
+    border: "1px solid rgba(148,163,184,0.14)",
+    borderRadius: "14px",
+    padding: "10px 14px",
+    boxShadow: "0 8px 24px rgba(0,0,0,0.18)",
+  },
+
+  body: {
+    flex: 1,
+    display: "flex",
+    overflow: "hidden",
+    padding: "14px",
+    gap: "14px",
+  },
+
+  sidebar: {
+    width: "340px",
+    minWidth: "340px",
+    display: "flex",
+    flexDirection: "column",
+    gap: "14px",
+    background: "rgba(2, 6, 23, 0.62)",
+    border: "1px solid rgba(148,163,184,0.12)",
+    borderRadius: "22px",
+    padding: "14px",
+    backdropFilter: "blur(10px)",
+    boxShadow: "0 18px 45px rgba(0,0,0,0.28)",
+  },
+
+  main: {
+    flex: 1,
+    display: "flex",
+    flexDirection: "column",
+    gap: "14px",
+    overflow: "hidden",
+  },
+
+  card: {
+    background: "linear-gradient(180deg, rgba(15,23,42,0.92), rgba(2,6,23,0.95))",
+    border: "1px solid rgba(148,163,184,0.12)",
+    borderRadius: "22px",
+    boxShadow: "0 18px 45px rgba(0,0,0,0.24)",
+  },
+
+  sectionHeader: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    padding: "14px 16px",
+    borderBottom: "1px solid rgba(148,163,184,0.10)",
+  },
+
+  sectionTitle: {
+    fontSize: "15px",
+    fontWeight: 700,
+    color: "#f8fafc",
+    letterSpacing: "0.2px",
+  },
+
+  sectionSub: {
+    fontSize: "12px",
+    color: "#94a3b8",
+  },
+
+  videoCard: {
+    overflow: "hidden",
+  },
+
+  participantsCard: {
+    padding: "14px",
+  },
+
+  participantList: {
+    display: "flex",
+    flexDirection: "column",
+    gap: "10px",
+    marginTop: "10px",
+    maxHeight: "150px",
+    overflowY: "auto",
+  },
+
+  participantItem: {
+    display: "flex",
+    alignItems: "center",
+    gap: "10px",
+    padding: "10px 12px",
+    borderRadius: "14px",
+    background: "rgba(30, 41, 59, 0.65)",
+    border: "1px solid rgba(148,163,184,0.10)",
+  },
+
+  avatar: {
+    width: "34px",
+    height: "34px",
+    borderRadius: "50%",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    background: "linear-gradient(135deg, #3b82f6, #8b5cf6)",
+    color: "#fff",
+    fontWeight: 700,
+    fontSize: "13px",
+    flexShrink: 0,
+  },
+
+  participantName: {
+    fontSize: "14px",
+    fontWeight: 600,
+    color: "#e2e8f0",
+  },
+
+  participantTag: {
+    fontSize: "11px",
+    color: "#94a3b8",
+  },
+
+  chatCard: {
+    flex: 1,
+    display: "flex",
+    flexDirection: "column",
+    overflow: "hidden",
+  },
+
+  chatMessages: {
+    flex: 1,
+    overflowY: "auto",
+    padding: "14px",
+    display: "flex",
+    flexDirection: "column",
+    gap: "10px",
+    minHeight: 0,
+  },
+
+  emptyState: {
+    fontSize: "13px",
+    color: "#64748b",
+    padding: "14px",
+    borderRadius: "14px",
+    background: "rgba(15, 23, 42, 0.5)",
+    border: "1px dashed rgba(148,163,184,0.16)",
+    textAlign: "center",
+  },
+
+  messageBubble: {
+    padding: "10px 12px",
+    borderRadius: "14px",
+    background: "rgba(30, 41, 59, 0.72)",
+    border: "1px solid rgba(148,163,184,0.10)",
+    lineHeight: 1.5,
+    wordBreak: "break-word",
+  },
+
+  messageUser: {
+    fontSize: "12px",
+    fontWeight: 700,
+    color: "#7dd3fc",
+    marginBottom: "4px",
+  },
+
+  messageText: {
+    fontSize: "13px",
+    color: "#e2e8f0",
+  },
+
+  chatInputWrap: {
+    display: "flex",
+    gap: "10px",
+    padding: "14px",
+    borderTop: "1px solid rgba(148,163,184,0.10)",
+  },
+
+  input: {
+    flex: 1,
+    padding: "12px 14px",
+    background: "rgba(15, 23, 42, 0.9)",
+    border: "1px solid rgba(148,163,184,0.14)",
+    color: "#fff",
+    borderRadius: "14px",
+    outline: "none",
+    fontSize: "14px",
+  },
+
+  button: {
+    padding: "12px 16px",
+    border: "none",
+    borderRadius: "14px",
+    background: "linear-gradient(135deg, #2563eb, #7c3aed)",
+    color: "#fff",
+    fontWeight: 700,
+    cursor: "pointer",
+    boxShadow: "0 10px 24px rgba(59,130,246,0.28)",
+  },
+
+  editorCard: {
+    flex: 1,
+    minHeight: 0,
+    overflow: "hidden",
+    display: "flex",
+    flexDirection: "column",
+  },
+
+  editorHeaderBadge: {
+    fontSize: "12px",
+    fontWeight: 600,
+    padding: "6px 10px",
+    borderRadius: "999px",
+    background: "rgba(34,211,238,0.12)",
+    color: "#67e8f9",
+    border: "1px solid rgba(34,211,238,0.18)",
+  },
+
+  editorWrap: {
+    flex: 1,
+    minHeight: 0,
+    overflow: "hidden",
+    borderRadius: "0 0 22px 22px",
+  },
+
+  lowerGrid: {
+    height: "350px",
+    display: "grid",
+    gridTemplateColumns: "1fr 1fr",
+    gap: "14px",
+  },
+
+  panelBody: {
+    padding: "12px",
+    height: "calc(100% - 56px)",
+    overflow: "hidden",
+  },
+
+  analysisCard: {
+    minHeight: "180px",
+    overflow: "hidden",
+  },
 };
 
 export default InterviewRoom;
