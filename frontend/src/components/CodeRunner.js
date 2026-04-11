@@ -6,7 +6,7 @@ const CodeRunner = ({ code, language, setOutput }) => {
   const [showInput, setShowInput] = useState(false);
   const [analysis, setAnalysis] = useState("");
 
-  const BASE_URL = process.env.REACT_APP_BACKEND_URL;
+  const BASE_URL = "https://codearena123.duckdns.org";
 
   const runCode = async () => {
     if (!code?.trim()) {

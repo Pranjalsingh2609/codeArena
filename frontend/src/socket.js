@@ -3,7 +3,8 @@ import { io } from "socket.io-client";
 const SOCKET_URL = "https://codearena123.duckdns.org";
 
 export const socket = io(SOCKET_URL, {
+  transports: ["websocket", "polling"],
   auth: {
-    token: localStorage.getItem("token") // or wherever you store JWT
-  }
+    token: localStorage.getItem("token"),
+  },
 });
