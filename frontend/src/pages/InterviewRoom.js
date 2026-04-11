@@ -101,7 +101,7 @@ const InterviewRoom = () => {
           <div
             style={{ fontSize: "22px", fontWeight: "700", color: "#38bdf8" }}
           >
-            🚀 CoderMeet
+            🚀 CoderMee
           </div>
           <div style={{ fontSize: "12px", color: "#94a3b8" }}>
             Room: {roomId}
