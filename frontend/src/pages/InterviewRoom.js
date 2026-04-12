@@ -101,7 +101,7 @@ const InterviewRoom = () => {
           <div
             style={{ fontSize: "22px", fontWeight: "700", color: "#38bdf8" }}
           >
-            🚀 CoderMee
+            🚀 CoderMeet
           </div>
           <div style={{ fontSize: "12px", color: "#94a3b8" }}>
             Room: {roomId}
@@ -126,7 +126,7 @@ const InterviewRoom = () => {
           <div style={{ marginBottom: "10px" }}>
             <h4 style={{ color: "#38bdf8" }}>👥 Participants</h4>
 
-           {(users || []).length === 0 ? (
+            {(users || []).length === 0 ? (
               <div style={{ fontSize: "12px", color: "#64748b" }}>
                 No users yet
               </div>
@@ -202,14 +202,80 @@ const InterviewRoom = () => {
             padding: "12px",
           }}
         >
-          <div style={{ flex: 1, borderRadius: "10px", overflow: "hidden" }}>
-            <CodeEditor
-              code={code}
-              setCode={setCode}
-              roomId={roomId}
-              language={language}
-              username={username}
-            />
+          {/* Editor Section */}
+          <div
+            style={{
+              flex: 1,
+              display: "flex",
+              flexDirection: "column",
+              borderRadius: "14px",
+              overflow: "hidden",
+              border: "1px solid rgba(148,163,184,0.12)",
+              background: "#020617",
+            }}
+          >
+            {/* 🔥 HEADER (NEW) */}
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                padding: "10px 14px",
+                background: "linear-gradient(90deg, #0f172a, #020617)",
+                borderBottom: "1px solid rgba(148,163,184,0.1)",
+              }}
+            >
+              {/* LEFT */}
+              <div style={{ fontWeight: "700", fontSize: "16px" }}>
+                🚀 CodeArena
+              </div>
+
+              {/* RIGHT */}
+              <div style={{ display: "flex", gap: "10px" }}>
+                <button
+                  onClick={() =>
+                    document.dispatchEvent(new Event("toggle-input"))
+                  }
+                  style={{
+                    padding: "6px 12px",
+                    borderRadius: "8px",
+                    border: "1px solid rgba(148,163,184,0.2)",
+                    background: "#1e293b",
+                    color: "#e2e8f0",
+                    cursor: "pointer",
+                    fontWeight: "600",
+                  }}
+                >
+                  Add Input
+                </button>
+
+                <button
+                  onClick={() => document.dispatchEvent(new Event("run-code"))}
+                  style={{
+                    padding: "6px 14px",
+                    borderRadius: "8px",
+                    border: "none",
+                    background: "#22c55e",
+                    color: "#000",
+                    fontWeight: "700",
+                    cursor: "pointer",
+                  }}
+                >
+                  ▶ Run Code
+                </button>
+              </div>
+            </div>
+
+            {/* EDITOR */}
+            <div style={{ flex: 1 }}>
+              <CodeEditor
+                code={code}
+                setCode={setCode}
+                roomId={roomId}
+                language={language}
+                username={username}
+              />
+            </div>
           </div>
 
           <div
@@ -242,7 +308,6 @@ const InterviewRoom = () => {
   );
 };
 
-
 const styles = {
   app: {
     height: "100vh",
@@ -251,8 +316,7 @@ const styles = {
     background:
       "radial-gradient(circle at top left, #172554 0%, #0f172a 35%, #020617 100%)",
     color: "#e2e8f0",
-    fontFamily:
-      "'Inter', 'Segoe UI', 'Poppins', 'Helvetica Neue', sans-serif",
+    fontFamily: "'Inter', 'Segoe UI', 'Poppins', 'Helvetica Neue', sans-serif",
   },
 
   topBar: {
@@ -337,7 +401,8 @@ const styles = {
   },
 
   card: {
-    background: "linear-gradient(180deg, rgba(15,23,42,0.92), rgba(2,6,23,0.95))",
+    background:
+      "linear-gradient(180deg, rgba(15,23,42,0.92), rgba(2,6,23,0.95))",
     border: "1px solid rgba(148,163,184,0.12)",
     borderRadius: "22px",
     boxShadow: "0 18px 45px rgba(0,0,0,0.24)",

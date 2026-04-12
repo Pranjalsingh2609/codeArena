@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 
 const CodeRunner = ({ code, language, setOutput }) => {
   const [loading, setLoading] = useState(false);
@@ -8,7 +8,9 @@ const CodeRunner = ({ code, language, setOutput }) => {
 
   const BASE_URL = "https://codearena123.duckdns.org";
 
-  const runCode = async () => {
+  const runCode = useCallback(async () => {
+    if (loading) return;
+
     if (!code?.trim()) {
       setOutput("⚠️ No code to run");
       return;
@@ -37,7 +39,6 @@ const CodeRunner = ({ code, language, setOutput }) => {
 
       const data = await res.json();
 
-      // Handle no output case
       if (!input && (!data.output || data.output.trim() === "")) {
         setShowInput(true);
         setOutput("⚠️ Input required.\nPlease provide input and run again.");
@@ -45,9 +46,7 @@ const CodeRunner = ({ code, language, setOutput }) => {
         setOutput(data.output || "No output returned.");
       }
 
-      // Simple AI feedback (can upgrade later)
       setAnalysis("✅ Code executed successfully.");
-
     } catch (error) {
       console.error("Run Error:", error);
       setOutput("❌ Failed to execute code. Check backend or network.");
@@ -55,33 +54,28 @@ const CodeRunner = ({ code, language, setOutput }) => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [code, language, input, loading, setOutput]);
+
+  useEffect(() => {
+    const handleRunCode = () => {
+      runCode();
+    };
+
+    const handleToggleInput = () => {
+      setShowInput((prev) => !prev);
+    };
+
+    document.addEventListener("run-code", handleRunCode);
+    document.addEventListener("toggle-input", handleToggleInput);
+
+    return () => {
+      document.removeEventListener("run-code", handleRunCode);
+      document.removeEventListener("toggle-input", handleToggleInput);
+    };
+  }, [runCode]);
 
   return (
     <div style={styles.container}>
-      
-      {/* Controls */}
-      <div style={styles.header}>
-        <button
-          onClick={() => setShowInput((prev) => !prev)}
-          style={styles.toggleBtn}
-        >
-          {showInput ? "Hide Input" : "Add Input"}
-        </button>
-
-        <button
-          onClick={runCode}
-          disabled={loading}
-          style={{
-            ...styles.runBtn,
-            background: loading ? "#334155" : "#22c55e",
-          }}
-        >
-          {loading ? "Running..." : "▶ Run Code"}
-        </button>
-      </div>
-
-      {/* Input Box */}
       {showInput && (
         <textarea
           value={input}
@@ -91,7 +85,6 @@ const CodeRunner = ({ code, language, setOutput }) => {
         />
       )}
 
-      {/* AI Analysis */}
       {analysis && (
         <div style={styles.analysisBox}>
           <strong>AI Analysis:</strong>
@@ -102,42 +95,14 @@ const CodeRunner = ({ code, language, setOutput }) => {
   );
 };
 
-/* Styles */
 const styles = {
   container: {
     width: "100%",
     background: "#020617",
     borderRadius: "10px",
-    padding: "12px",
     display: "flex",
     flexDirection: "column",
     gap: "10px",
-    border: "1px solid #1e293b",
-  },
-
-  header: {
-    display: "flex",
-    justifyContent: "space-between",
-    gap: "10px",
-  },
-
-  toggleBtn: {
-    background: "#1e293b",
-    color: "#38bdf8",
-    border: "1px solid #334155",
-    padding: "6px 12px",
-    borderRadius: "6px",
-    cursor: "pointer",
-    fontSize: "13px",
-  },
-
-  runBtn: {
-    color: "#000",
-    border: "none",
-    borderRadius: "6px",
-    padding: "6px 16px",
-    fontWeight: "600",
-    cursor: "pointer",
   },
 
   textarea: {
@@ -146,16 +111,17 @@ const styles = {
     background: "#1e293b",
     color: "#fff",
     border: "1px solid #334155",
-    borderRadius: "6px",
+    borderRadius: "8px",
     padding: "10px",
     fontSize: "13px",
     resize: "vertical",
+    outline: "none",
   },
 
   analysisBox: {
     background: "#0f172a",
     padding: "10px",
-    borderRadius: "6px",
+    borderRadius: "8px",
     fontSize: "13px",
     color: "#e2e8f0",
     border: "1px solid #1e293b",
