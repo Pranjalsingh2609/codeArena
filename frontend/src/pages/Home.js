@@ -227,7 +227,7 @@ const Home = () => {
         <div style={styles.badge}>⚡ LIVE COLLABORATION PLATFORM</div>
 
         <h1 style={styles.title}>
-          Welcome to <span style={styles.highlight}>CodeMeet</span>
+          Welcome to <span style={styles.highlight}>CoderMeet</span>
         </h1>
 
         <p style={styles.subtitle}>
