@@ -176,7 +176,7 @@ const CodeEditor = ({ code, setCode, roomId, language }) => {
     <div style={styles.container}>
       {/* HEADER */}
       <div style={styles.header}>
-        <div style={styles.title}>🚀 CodeArena</div>
+       
 
         <div style={styles.users}>
           {users.map((u) => (

@@ -1,4 +1,4 @@
-const { runStaticAnalysis } = require("../utils/staticAnalysis");
+ const { runStaticAnalysis } = require("../utils/staticAnalysis");
 // const { analyzeCodeWithAI } = require("../utils/aiAnalysis"); // optional
 
 const rooms = {};
