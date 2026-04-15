@@ -227,7 +227,7 @@ const styles = {
   },
 
   header: {
-    height: "55px",
+    height: "0px",
     backdropFilter: "blur(10px)",
     background: "rgba(22, 27, 34, 0.8)",
     display: "flex",

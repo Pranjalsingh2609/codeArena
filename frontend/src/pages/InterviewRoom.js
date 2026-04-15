@@ -320,7 +320,7 @@ const styles = {
   },
 
   topBar: {
-    height: "1px",
+    height: "76px",
     display: "flex",
     justifyContent: "space-between",
     alignItems: "center",
