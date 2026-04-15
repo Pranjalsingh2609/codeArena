@@ -6,7 +6,7 @@ const OutputConsole = ({ output }) => {
       background: "#020617",
       color: "#22c55e",
       padding: "14px",
-      height: "200px",
+      height: "240px",
       overflowY: "auto",
       fontFamily: "Fira Code, monospace",
       borderRadius: "8px",
