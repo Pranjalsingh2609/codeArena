@@ -28,7 +28,7 @@ const runCode = (code, language, input = "") => {
         command = `${DOCKER_BIN} run --rm -i --network none -m 256m --cpus=0.5 -v "${dir}:/app" -w /app gcc:latest sh -c "g++ Main.cpp -o main && ./main" < "${inputPath}"`;
       } else if (language === "java") {
         fs.writeFileSync(path.join(dir, "Main.java"), code, "utf8");
-        command = `${DOCKER_BIN} run --rm -i --network none -m 256m --cpus=0.5 -v "${dir}:/app" -w /app openjdk:17 sh -c "javac Main.java && java Main" < "${inputPath}"`;
+        command = `${DOCKER_BIN} run --rm -i --network none -m 256m --cpus=0.5 -v "${dir}:/app" -w /app openjdk:17-jdk-slim sh -c "javac Main.java && java Main" < "${inputPath}"`;
       } else {
         return resolve("❌ Unsupported language");
       }
@@ -38,7 +38,6 @@ const runCode = (code, language, input = "") => {
         {
           timeout: 10000,
           maxBuffer: 1024 * 1024,
-          env: { ...process.env, PATH: `${process.env.PATH || ""}:/usr/bin:/bin` },
         },
         (err, stdout, stderr) => {
           try {

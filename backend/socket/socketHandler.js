@@ -23,6 +23,7 @@ function ensureRoom(roomId) {
       users: [],
       cursors: {},
       videoUsers: new Set(),
+      messages: [],
     };
   }
   return rooms[roomId];
@@ -50,7 +51,10 @@ function safeCacheSet(key, value) {
 }
 
 module.exports = (io, socket) => {
+<<<<<<< HEAD
   // ================= JOIN ROOM =================
+=======
+>>>>>>> 3e7065d (🚀 Optimized socketHandler for scalability and performance)
   socket.on("join-room", ({ roomId, username }) => {
     if (!roomId || typeof roomId !== "string") return;
 
@@ -81,7 +85,11 @@ module.exports = (io, socket) => {
       language: room.language,
       users: room.users,
       cursors: room.cursors,
+<<<<<<< HEAD
       messages: room.messages || [],
+=======
+      messages: room.messages,
+>>>>>>> 3e7065d (🚀 Optimized socketHandler for scalability and performance)
     });
 
     socket.to(roomId).emit("user-joined", {
@@ -92,7 +100,6 @@ module.exports = (io, socket) => {
     io.to(roomId).emit("users-update", room.users);
   });
 
-  // ================= CODE =================
   socket.on("code-change", ({ roomId, code, cursor }) => {
     const room = getRoom(roomId);
     if (!room) return;
@@ -130,7 +137,6 @@ module.exports = (io, socket) => {
     }
   });
 
-  // ================= CURSOR =================
   socket.on("cursor-change", ({ roomId, cursor }) => {
     const room = getRoom(roomId);
     if (!room || !cursor) return;
@@ -158,7 +164,6 @@ module.exports = (io, socket) => {
     });
   });
 
-  // ================= LANGUAGE =================
   socket.on("language-change", ({ roomId, language }) => {
     const room = getRoom(roomId);
     if (!room) return;
@@ -168,7 +173,6 @@ module.exports = (io, socket) => {
     socket.to(roomId).emit("language-update", language);
   });
 
-  // ================= VIDEO =================
   socket.on("join-video", (roomId) => {
     const room = getRoom(roomId);
     if (!room) return;
@@ -192,6 +196,10 @@ module.exports = (io, socket) => {
 
   socket.on("sending-signal", ({ userToSignal, signal }) => {
     if (!userToSignal || !signal) return;
+<<<<<<< HEAD
+=======
+
+>>>>>>> 3e7065d (🚀 Optimized socketHandler for scalability and performance)
     io.to(userToSignal).emit("receiving-signal", {
       signal,
       from: socket.id,
@@ -200,13 +208,16 @@ module.exports = (io, socket) => {
 
   socket.on("returning-signal", ({ signal, to }) => {
     if (!to || !signal) return;
+<<<<<<< HEAD
+=======
+
+>>>>>>> 3e7065d (🚀 Optimized socketHandler for scalability and performance)
     io.to(to).emit("signal-returned", {
       signal,
       from: socket.id,
     });
   });
 
-  // ================= DISCONNECT =================
   socket.on("disconnect", () => {
     const roomId = socket.data.roomId;
 
