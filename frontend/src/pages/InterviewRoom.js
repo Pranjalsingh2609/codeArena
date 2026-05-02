@@ -300,7 +300,7 @@ const InterviewRoom = () => {
               marginTop: "8px",
             }}
           >
-            <CodeAnalysisPanel code={code} language={language} />
+            <CodeAnalysisPanel roomId={roomId} />
           </div>
         </div>
       </div>
