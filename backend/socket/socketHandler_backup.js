@@ -1,7 +1,5 @@
 
 const { runStaticAnalysis } = require("../utils/staticAnalysis");
-const { analyzeCodeWithAI } = require("../utils/aiAnalysis");
-
 
 const rooms = {};
 const aiCache = new Map();
@@ -96,7 +94,7 @@ module.exports = (io, socket) => {
     io.to(roomId).emit("users-update", room.users);
   });
 
-  socket.on("code-change", async ({ roomId, code, cursor }) => {
+  socket.on("code-change", ({ roomId, code, cursor }) => {
     const room = getRoom(roomId);
     if (!room) return;
     if (typeof code !== "string") return;
@@ -126,18 +124,12 @@ module.exports = (io, socket) => {
     }
 
     try {
-  const staticIssues = runStaticAnalysis(code, room.language);
-
-  const aiIssues = await analyzeCodeWithAI(code, room.language);
-
-  const issues = [...staticIssues, ...aiIssues];
-
-  safeCacheSet(cacheKey, issues);
-  io.to(roomId).emit("ai-suggestions", issues);
-} catch (error) {
-  console.error("AI suggestion error:", error.message);
-  io.to(roomId).emit("ai-suggestions", []);
-}
+      const issues = runStaticAnalysis(code, room.language);
+      safeCacheSet(cacheKey, issues);
+      io.to(roomId).emit("ai-suggestions", issues);
+    } catch {
+      io.to(roomId).emit("ai-suggestions", []);
+    }
   });
 
   socket.on("cursor-change", ({ roomId, cursor }) => {

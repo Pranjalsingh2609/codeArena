@@ -19,10 +19,10 @@ const runCode = (code, language, input = "") => {
 
       if (language === "javascript") {
         fs.writeFileSync(path.join(dir, "Main.js"), code, "utf8");
-        command = `${DOCKER_BIN} run --rm -i --network none -m 128m --cpus=0.5 -v "${dir}:/app" -w /app node:18 sh -c "node Main.js" < "${inputPath}"`;
+        command = `${DOCKER_BIN} run --rm -i --network none -m 128m --cpus=0.5 -v "${dir}:/app" -w /app node:18 sh -c "node Main.js < input.txt"`;
       } else if (language === "python") {
         fs.writeFileSync(path.join(dir, "Main.py"), code, "utf8");
-        command = `${DOCKER_BIN} run --rm -i --network none -m 128m --cpus=0.5 -v "${dir}:/app" -w /app python:3.10 sh -c "python Main.py" < "${inputPath}"`;
+        command = `${DOCKER_BIN} run --rm -i --network none -m 128m --cpus=0.5 -v "${dir}:/app" -w /app python:3.10 sh -c "python Main.py < input.txt"`;
       } else if (language === "cpp") {
         fs.writeFileSync(path.join(dir, "Main.cpp"), code, "utf8");
         command = `${DOCKER_BIN} run --rm -i --network none -m 256m --cpus=0.5 -v "${dir}:/app" -w /app gcc:latest sh -c "g++ Main.cpp -o main && ./main" < "${inputPath}"`;
