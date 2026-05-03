@@ -1,83 +1,74 @@
-const OpenAI = require("openai");
+const Groq = require("groq-sdk");
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
+const groq = new Groq({
+  apiKey: process.env.GROQ_API_KEY,
 });
 
 exports.analyzeCodeWithAI = async (code, language) => {
   if (!code || code.trim().length < 5) return [];
 
-  // 🔥 STRONG PROMPT (very important)
   const prompt = `
 You are a senior software engineer and security expert.
 
-Analyze the given ${language} code carefully.
+Analyze this ${language} code.
 
-Focus on:
-- Security vulnerabilities (injection, XSS, auth issues)
-- Bugs / logical errors
-- Performance issues
-- Bad practices
+Find:
+- security issues
+- bugs
+- performance issues
+- bad practices
+- improvements
 
-Return ONLY a valid JSON array.
+Return ONLY valid JSON array.
 
-Each item MUST follow this format:
-{
-  "type": "security | bug | performance | style",
-  "severity": "low | medium | high",
-  "message": "clear explanation",
-  "line": "line number if possible",
-  "fix": "how to fix it"
-}
-
-Do NOT include any explanation outside JSON.
+Format:
+[
+  {
+    "type": "security | bug | performance | style",
+    "severity": "low | medium | high",
+    "message": "clear issue",
+    "line": "line number if possible",
+    "fix": "how to fix it"
+  }
+]
 
 Code:
 ${code}
 `;
 
   try {
-    const response = await openai.responses.create({
-      model: "gpt-4o-mini",
-      input: prompt,
-      max_output_tokens: 400,
+    const response = await groq.chat.completions.create({
+      model: "llama-3.1-8b-instant",
+      messages: [
+        {
+          role: "user",
+          content: prompt,
+        },
+      ],
+      temperature: 0.2,
+      max_tokens: 500,
     });
 
-    let text = response.output_text?.trim() || "";
+    const text = response.choices[0]?.message?.content?.trim() || "";
 
-    // 🧠 CLEAN JSON EXTRACTION (very important)
     const start = text.indexOf("[");
     const end = text.lastIndexOf("]");
 
     if (start === -1 || end === -1) {
-      throw new Error("Invalid JSON format from AI");
+      throw new Error("Invalid JSON from Groq");
     }
 
-    const jsonString = text.slice(start, end + 1);
-
-    let issues = JSON.parse(jsonString);
-
-    // ✅ Normalize output (extra safety)
-    issues = issues.map((issue) => ({
-      type: issue.type || "unknown",
-      severity: issue.severity || "low",
-      message: issue.message || "No description",
-      line: issue.line || null,
-      fix: issue.fix || "No fix provided",
-    }));
-
-    return issues;
-
+    return JSON.parse(text.slice(start, end + 1));
   } catch (error) {
-    console.error("AI analysis error:", error.message);
+    console.error("Groq AI analysis error:", error.message);
 
     return [
       {
         type: "system",
         severity: "low",
-        message: "AI analysis failed",
+        message: "Groq AI analysis failed",
         line: null,
-        fix: "Try again later",
+        fix: "Check GROQ_API_KEY or Groq logs",
       },
     ];
   }
